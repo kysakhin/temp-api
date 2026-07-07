@@ -13,7 +13,7 @@ type Bond struct {
 	ISIN            string           `gorm:"primaryKey;column:isin"`
 	BondName        string           `gorm:"column:bond_name;not null"`
 	Rating          *string          `gorm:"column:rating"`
-	BondYield       *decimal.Decimal `gorm:"column:bond_yield;type:decimal(6,2)"`
+	BondYield       *decimal.Decimal `gorm:"column:yield;type:decimal(6,2)"`
 	MinInvestment   *int64           `gorm:"column:min_investment"`
 	PayoutFrequency *string          `gorm:"column:payout_frequency"`
 	LogoURL         *string          `gorm:"column:logo_url"`

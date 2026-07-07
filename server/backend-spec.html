@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Temp API Backend Spec Sheet</title>
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.45; margin: 24px; color: #111; }
+    h1, h2, h3 { margin-top: 24px; }
+    code, pre { background: #f5f5f5; padding: 2px 4px; border-radius: 4px; }
+    pre { padding: 12px; overflow-x: auto; }
+    table { border-collapse: collapse; width: 100%; margin: 12px 0 20px; }
+    th, td { border: 1px solid #ccc; text-align: left; vertical-align: top; padding: 8px; }
+    th { background: #fafafa; }
+    .muted { color: #555; }
+  </style>
+</head>
+<body>
+  <h1>Temp API Backend Replication Spec</h1>
+  <p class="muted">
+    Purpose: this document defines the current backend contract so a replacement backend can be implemented
+    without changing frontend code.
+  </p>
+
+  <h2>1. Runtime, Base Path, and Global Rules</h2>
+  <table>
+    <tr><th>Item</th><th>Spec</th></tr>
+    <tr><td>Language / framework</td><td>Go + Gin + GORM + PostgreSQL</td></tr>
+    <tr><td>API base path</td><td><code>/api/v1</code></td></tr>
+    <tr><td>Content-Type</td><td>Server sets <code>Content-Type: application/json</code> on all routes</td></tr>
+    <tr><td>Success envelope</td><td><code>200</code>/<code>201</code> responses use <code>{ "data": ... }</code> (except endpoints that return empty bodies)</td></tr>
+    <tr><td>Error envelope</td><td><code>{ "code": "ERROR_CODE", "message": "Human readable message" }</code></td></tr>
+    <tr><td>Time format</td><td>RFC3339 UTC for timestamps (example: <code>2026-01-31T09:30:00Z</code>)</td></tr>
+    <tr><td>Date format</td><td><code>YYYY-MM-DD</code> for <code>maturityDate</code></td></tr>
+    <tr><td>Unknown route</td><td><code>404</code> with code <code>NOT_FOUND</code></td></tr>
+  </table>
+
+  <h2>2. Data Models Exposed to Frontend</h2>
+
+  <h3>2.1 Bond DTO (catalog)</h3>
+  <pre>{
+  "isin": "string (12 chars in DB)",
+  "bondName": "string",
+  "rating": "string | null",
+  "bondYield": "decimal | null",
+  "minInvestment": "integer | null",
+  "payoutFrequency": "string | null",
+  "logoUrl": "string | null",
+  "detailUrl": "string | null",
+  "tenure": "decimal",
+  "maturityDate": "YYYY-MM-DD | null"
+}</pre>
+
+  <h3>2.2 Wishlist summary DTO</h3>
+  <pre>{
+  "id": "uuid",
+  "name": "string",
+  "bondCount": "integer",
+  "createdAt": "RFC3339 UTC string",
+  "updatedAt": "RFC3339 UTC string"
+}</pre>
+
+  <h3>2.3 Wishlist details DTO</h3>
+  <pre>{
+  "id": "uuid",
+  "name": "string",
+  "bondCount": "integer",
+  "createdAt": "RFC3339 UTC string",
+  "updatedAt": "RFC3339 UTC string",
+  "bonds": [
+    {
+      "isin": "string",
+      "bondName": "string",
+      "rating": "string | null",
+      "bondYield": "decimal | null",
+      "minInvestment": "integer | null",
+      "payoutFrequency": "string | null",
+      "logoUrl": "string | null",
+      "detailUrl": "string | null",
+      "tenure": "decimal",
+      "maturityDate": "YYYY-MM-DD | null",
+      "color": "string | null",
+      "position": "integer >= 0",
+      "isPinned": "boolean"
+    }
+  ]
+}</pre>
+
+  <h2>3. Endpoints</h2>
+
+  <h3>3.1 GET <code>/api/v1/bond</code></h3>
+  <p>Returns full bond catalog (no pagination).</p>
+  <table>
+    <tr><th>Query Param</th><th>Type</th><th>Allowed</th><th>Default behavior</th></tr>
+    <tr><td><code>sortBy</code></td><td>string</td><td><code>isin</code>, <code>bondYield</code>, <code>minInvestment</code>, <code>tenure</code>, <code>rating</code></td><td>Invalid/missing -&gt; <code>isin</code></td></tr>
+    <tr><td><code>sortOrder</code></td><td>string</td><td><code>asc</code>, <code>desc</code></td><td>Invalid/missing -&gt; <code>asc</code></td></tr>
+  </table>
+  <p>Sorting rule: primary sort on requested field with <code>NULLS LAST</code>, stable tiebreaker on <code>isin</code> in same direction.</p>
+  <pre>200 OK
+{
+  "data": [BondDto, ...]
+}</pre>
+  <pre>500 INTERNAL_SERVER_ERROR
+{
+  "code": "INTERNAL_SERVER_ERROR",
+  "message": "Something went wrong."
+}</pre>
+
+  <h3>3.2 GET <code>/api/v1/wishlist</code></h3>
+  <p>Returns all wishlists ordered newest first by <code>created_at DESC</code>.</p>
+  <pre>200 OK
+{
+  "data": [WishlistDto, ...]
+}</pre>
+  <pre>500 INTERNAL_SERVER_ERROR
+{
+  "code": "INTERNAL_SERVER_ERROR",
+  "message": "Something went wrong."
+}</pre>
+
+  <h3>3.3 POST <code>/api/v1/wishlist</code></h3>
+  <p>Create wishlist.</p>
+  <pre>Request body
+{
+  "name": "string"
+}</pre>
+  <p>Validation/business rules:</p>
+  <ul>
+    <li><code>name</code> required</li>
+    <li>trimmed name cannot be blank</li>
+    <li>name max length: 50 chars</li>
+    <li>global max wishlists: 5</li>
+  </ul>
+  <pre>201 Created
+{
+  "data": WishlistDto
+}</pre>
+  <pre>400 BAD_REQUEST
+{ "code": "BAD_REQUEST", "message": "name is required." }</pre>
+  <pre>400 BAD_REQUEST
+{ "code": "BAD_REQUEST", "message": "name cannot be blank." }</pre>
+  <pre>400 BAD_REQUEST
+{ "code": "BAD_REQUEST", "message": "name must be 50 characters or fewer." }</pre>
+  <pre>422 UNPROCESSABLE_ENTITY
+{ "code": "WISHLIST_LIMIT_REACHED", "message": "Maximum of 5 wishlists allowed." }</pre>
+  <pre>500 INTERNAL_SERVER_ERROR
+{ "code": "INTERNAL_SERVER_ERROR", "message": "Something went wrong." }</pre>
+
+  <h3>3.4 GET <code>/api/v1/wishlist/:wishlistId</code></h3>
+  <p>Returns one wishlist with bonds.</p>
+  <table>
+    <tr><th>Path Param</th><th>Type</th><th>Rule</th></tr>
+    <tr><td><code>wishlistId</code></td><td>string</td><td>Must be valid UUID</td></tr>
+  </table>
+  <table>
+    <tr><th>Query Param</th><th>Type</th><th>Allowed</th><th>Default behavior</th></tr>
+    <tr><td><code>sortBy</code></td><td>string</td><td><code>manual</code>, <code>addedRecently</code>, <code>color</code></td><td>Invalid/missing -&gt; <code>addedRecently</code></td></tr>
+  </table>
+  <p>Sort precedence always starts with pinned first: <code>isPinned DESC</code>, then chosen secondary sort:</p>
+  <ul>
+    <li><code>manual</code>: <code>position ASC</code></li>
+    <li><code>addedRecently</code>: <code>created_at DESC</code></li>
+    <li><code>color</code>: <code>color ASC NULLS LAST, position ASC</code></li>
+  </ul>
+  <pre>200 OK
+{
+  "data": WishlistDetailsDto
+}</pre>
+  <pre>400 BAD_REQUEST
+{ "code": "BAD_REQUEST", "message": "Invalid UUID." }</pre>
+  <pre>404 NOT_FOUND
+{ "code": "NOT_FOUND", "message": "Requested resource was not found." }</pre>
+  <pre>500 INTERNAL_SERVER_ERROR
+{ "code": "INTERNAL_SERVER_ERROR", "message": "Something went wrong." }</pre>
+
+  <h3>3.5 PATCH <code>/api/v1/wishlist/:wishlistId</code></h3>
+  <p>Rename wishlist.</p>
+  <pre>Request body
+{
+  "name": "string"
+}</pre>
+  <pre>200 OK
+{
+  "data": WishlistDto
+}</pre>
+  <p>Errors are the same as create (plus 404 if wishlist does not exist).</p>
+
+  <h3>3.6 DELETE <code>/api/v1/wishlist/:wishlistId</code></h3>
+  <p>Deletes wishlist and its wishlist_bond rows (single transaction).</p>
+  <pre>204 No Content</pre>
+  <pre>400 BAD_REQUEST
+{ "code": "BAD_REQUEST", "message": "Invalid UUID." }</pre>
+  <pre>404 NOT_FOUND
+{ "code": "NOT_FOUND", "message": "Requested resource was not found." }</pre>
+  <pre>500 INTERNAL_SERVER_ERROR
+{ "code": "INTERNAL_SERVER_ERROR", "message": "Something went wrong." }</pre>
+
+  <h3>3.7 POST <code>/api/v1/wishlist/:wishlistId/bond</code></h3>
+  <p>Add bond to wishlist.</p>
+  <pre>Request body
+{
+  "bondIsin": "string"
+}</pre>
+  <p>Business rules:</p>
+  <ul>
+    <li>wishlist must exist</li>
+    <li>bond must exist in catalog</li>
+    <li>bond must not already be in wishlist</li>
+    <li>max 10 bonds per wishlist</li>
+  </ul>
+  <pre>201 Created (empty body)</pre>
+  <pre>400 BAD_REQUEST
+{ "code": "BAD_REQUEST", "message": "Invalid UUID." }</pre>
+  <pre>400 BAD_REQUEST
+{ "code": "BAD_REQUEST", "message": "bondIsin is required." }</pre>
+  <pre>404 NOT_FOUND
+{ "code": "NOT_FOUND", "message": "Requested resource was not found." }</pre>
+  <pre>409 CONFLICT
+{ "code": "BOND_ALREADY_EXISTS", "message": "Bond already exists in wishlist." }</pre>
+  <pre>422 UNPROCESSABLE_ENTITY
+{ "code": "WISHLIST_FULL", "message": "Maximum of 10 bonds allowed in a wishlist." }</pre>
+  <pre>500 INTERNAL_SERVER_ERROR
+{ "code": "INTERNAL_SERVER_ERROR", "message": "Something went wrong." }</pre>
+
+  <h3>3.8 DELETE <code>/api/v1/wishlist/:wishlistId/bond/:bondIsin</code></h3>
+  <p>Remove bond from wishlist.</p>
+  <pre>204 No Content</pre>
+  <pre>400 BAD_REQUEST
+{ "code": "BAD_REQUEST", "message": "Invalid UUID." }</pre>
+  <pre>404 NOT_FOUND
+{ "code": "NOT_FOUND", "message": "Requested resource was not found." }</pre>
+
+  <h3>3.9 PATCH <code>/api/v1/wishlist/:wishlistId/bond/:bondIsin/color</code></h3>
+  <p>Set or clear a per-wishlist color tag for the bond.</p>
+  <pre>Request body
+{
+  "color": "string | null"
+}</pre>
+  <p><code>"color": null</code> clears color in DB. Empty object sets color to null as well.</p>
+  <pre>204 No Content</pre>
+  <pre>400 BAD_REQUEST
+{ "code": "BAD_REQUEST", "message": "Invalid UUID." }</pre>
+  <pre>400 BAD_REQUEST
+{ "code": "BAD_REQUEST", "message": "Invalid request body." }</pre>
+  <pre>404 NOT_FOUND
+{ "code": "NOT_FOUND", "message": "Requested resource was not found." }</pre>
+
+  <h3>3.10 PATCH <code>/api/v1/wishlist/:wishlistId/bond/:bondIsin/position</code></h3>
+  <p>Set manual position (0-based integer).</p>
+  <pre>Request body
+{
+  "position": 0
+}</pre>
+  <p>Validation: <code>position</code> required, integer, minimum 0.</p>
+  <pre>204 No Content</pre>
+  <pre>400 BAD_REQUEST
+{ "code": "BAD_REQUEST", "message": "position must be a non-negative integer." }</pre>
+  <pre>404 NOT_FOUND
+{ "code": "NOT_FOUND", "message": "Requested resource was not found." }</pre>
+
+  <h3>3.11 PATCH <code>/api/v1/wishlist/:wishlistId/bond/:bondIsin/pin</code></h3>
+  <p>Pin or unpin bond within wishlist.</p>
+  <pre>Request body
+{
+  "isPinned": true
+}</pre>
+  <p>Behavior:</p>
+  <ul>
+    <li><code>true</code> pins, <code>false</code> unpins</li>
+    <li>if field omitted in valid JSON object, it defaults to <code>false</code> (unpin)</li>
+    <li>pinned bonds are always listed before unpinned in GET wishlist</li>
+  </ul>
+  <pre>204 No Content</pre>
+  <pre>400 BAD_REQUEST
+{ "code": "BAD_REQUEST", "message": "isPinned must be a boolean." }</pre>
+  <pre>404 NOT_FOUND
+{ "code": "NOT_FOUND", "message": "Requested resource was not found." }</pre>
+
+  <h3>3.12 PATCH <code>/api/v1/wishlist/:wishlistId/reorder</code></h3>
+  <p>Bulk reorder positions by sending full list of bond ISINs in desired order.</p>
+  <pre>Request body
+{
+  "bondIsins": ["ISIN_A", "ISIN_B", "ISIN_C"]
+}</pre>
+  <p>Validation/business rules:</p>
+  <ul>
+    <li><code>bondIsins</code> required and non-empty</li>
+    <li>must contain exactly all bonds currently in the wishlist (count must match)</li>
+    <li>if any ISIN not in wishlist, request fails</li>
+    <li>updates are transactional</li>
+    <li>reorder updates <code>position</code> only; <code>isPinned</code> is not changed</li>
+  </ul>
+  <pre>204 No Content</pre>
+  <pre>400 BAD_REQUEST
+{ "code": "BAD_REQUEST", "message": "bondIsins is required and must be a non-empty array." }</pre>
+  <pre>400 BAD_REQUEST
+{ "code": "BAD_REQUEST", "message": "bondIsins must contain all N bonds in the wishlist." }</pre>
+  <pre>400 BAD_REQUEST
+{ "code": "BAD_REQUEST", "message": "One or more bondIsins do not exist in this wishlist." }</pre>
+  <pre>404 NOT_FOUND
+{ "code": "NOT_FOUND", "message": "Requested resource was not found." }</pre>
+
+  <h2>4. Status Codes Matrix</h2>
+  <table>
+    <tr><th>Status</th><th>Meaning in this API</th></tr>
+    <tr><td>200</td><td>Successful read/update with JSON envelope <code>{ "data": ... }</code></td></tr>
+    <tr><td>201</td><td>Resource created (wishlist create returns envelope; add-bond returns empty body)</td></tr>
+    <tr><td>204</td><td>Successful operation with no response body</td></tr>
+    <tr><td>400</td><td>Validation/parsing/input errors (UUID, body shape, constraints)</td></tr>
+    <tr><td>404</td><td>Requested resource not found / route not found</td></tr>
+    <tr><td>409</td><td>Conflict (bond already in wishlist)</td></tr>
+    <tr><td>422</td><td>Business rule limits violated (wishlist max count / wishlist max bonds)</td></tr>
+    <tr><td>500</td><td>Unexpected server/database error</td></tr>
+  </table>
+
+  <h2>5. Error Codes Reference</h2>
+  <table>
+    <tr><th>Error Code</th><th>HTTP</th><th>Meaning</th></tr>
+    <tr><td><code>BAD_REQUEST</code></td><td>400</td><td>Malformed request, invalid UUID, invalid JSON, missing/invalid fields, or business input mismatch.</td></tr>
+    <tr><td><code>NOT_FOUND</code></td><td>404</td><td>Entity does not exist (wishlist/bond relation), or route not found.</td></tr>
+    <tr><td><code>INTERNAL_SERVER_ERROR</code></td><td>500</td><td>Unexpected backend/database failure.</td></tr>
+    <tr><td><code>WISHLIST_LIMIT_REACHED</code></td><td>422</td><td>Attempt to create more than 5 wishlists.</td></tr>
+    <tr><td><code>BOND_ALREADY_EXISTS</code></td><td>409</td><td>Attempt to add a bond that is already inside that wishlist.</td></tr>
+    <tr><td><code>WISHLIST_FULL</code></td><td>422</td><td>Attempt to exceed 10 bonds in a wishlist.</td></tr>
+  </table>
+
+  <h2>6. Backend Structural Requirements (for replacement implementation)</h2>
+  <ul>
+    <li>Keep all routes, HTTP methods, path params, query params, JSON field names, and status/error codes exactly the same.</li>
+    <li>Preserve success envelope shape (<code>{ "data": ... }</code>) and empty-body endpoints exactly.</li>
+    <li>Preserve validation messages where frontend depends on exact text.</li>
+    <li>Keep pinned behavior: pinned bonds always listed before unpinned, regardless of selected sort mode.</li>
+    <li>Keep wishlist limits: max 5 wishlists and max 10 bonds per wishlist.</li>
+  </ul>
+
+  <h2>7. Persistence Schema (current DB contract)</h2>
+  <p>Current DB is PostgreSQL. A compatible replacement should preserve equivalent behavior and constraints.</p>
+  <h3>7.1 Table: <code>bonds</code></h3>
+  <pre>isin VARCHAR(12) PRIMARY KEY
+bond_name TEXT NOT NULL
+rating VARCHAR(20) NULL
+bond_yield DECIMAL(6,2) NULL
+min_investment BIGINT NULL
+payout_frequency VARCHAR(30) NULL
+logo_url TEXT NULL
+detail_url TEXT NULL
+tenure DECIMAL(6,2) NOT NULL
+maturity_date DATE NULL</pre>
+
+  <h3>7.2 Table: <code>wishlists</code></h3>
+  <pre>id UUID PRIMARY KEY
+name VARCHAR(50) NOT NULL
+created_at TIMESTAMPTZ NOT NULL
+updated_at TIMESTAMPTZ NOT NULL</pre>
+
+  <h3>7.3 Table: <code>wishlist_bonds</code></h3>
+  <pre>wishlist_id UUID NOT NULL REFERENCES wishlists(id)
+bond_isin VARCHAR(12) NOT NULL REFERENCES bonds(isin)
+created_at TIMESTAMPTZ NOT NULL
+color VARCHAR(7) NULL
+position INT NOT NULL DEFAULT 0
+is_pinned BOOLEAN NOT NULL DEFAULT FALSE
+PRIMARY KEY (wishlist_id, bond_isin)</pre>
+
+  <h2>8. Environment / Startup Contract</h2>
+  <table>
+    <tr><th>Variable</th><th>Required</th><th>Description</th></tr>
+    <tr><td><code>DATABASE_URL</code></td><td>Yes</td><td>PostgreSQL DSN</td></tr>
+    <tr><td><code>PORT</code></td><td>No</td><td>Server port, defaults to <code>8080</code></td></tr>
+  </table>
+
+  <p class="muted">End of spec.</p>
+</body>
+</html>

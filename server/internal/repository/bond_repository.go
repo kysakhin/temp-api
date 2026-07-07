@@ -13,7 +13,7 @@ type BondSortField string
 
 const (
 	SortByISIN          BondSortField = "isin"
-	SortByBondYield     BondSortField = "bond_yield"
+	SortByBondYield     BondSortField = "yield"
 	SortByMinInvestment BondSortField = "min_investment"
 	SortByTenure        BondSortField = "tenure"
 	SortByRating        BondSortField = "rating"
