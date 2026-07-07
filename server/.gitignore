@@ -1,0 +1,25 @@
+# Environment variables — never commit real credentials
+.env
+*.env
+.env.*
+!.env.example
+
+# Go build artifacts
+/bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Dependency cache
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
