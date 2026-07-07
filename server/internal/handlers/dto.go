@@ -61,6 +61,7 @@ type WishlistBondDto struct {
 	MaturityDate    *string          `json:"maturityDate"`
 	Color           *string          `json:"color"`
 	Position        int              `json:"position"`
+	IsPinned        bool             `json:"isPinned"`
 }
 
 // ─── Wishlist ─────────────────────────────────────────────────────────────────
@@ -123,4 +124,10 @@ type UpdateWishlistBondPositionRequest struct {
 // BondISINs must contain every ISIN currently in the wishlist in the desired order.
 type ReorderWishlistBondsRequest struct {
 	BondISINs []string `json:"bondIsins" binding:"required,min=1"`
+}
+
+// PinWishlistBondRequest is the body for
+// PATCH /wishlist/:wishlistId/bond/:bondIsin/pin
+type PinWishlistBondRequest struct {
+	IsPinned bool `json:"isPinned"`
 }

@@ -13,6 +13,7 @@ type WishlistBondEntry struct {
 	models.Bond
 	Color    *string
 	Position int
+	IsPinned bool
 }
 
 // WishlistWithBonds is a projection used by GetWishlistWithBonds.
@@ -22,12 +23,13 @@ type WishlistWithBonds struct {
 }
 
 // WishlistSortBy enumerates the sort options for bonds inside a wishlist.
+// Pinned bonds always float to the top regardless of sort mode.
 type WishlistSortBy string
 
 const (
-	WishlistSortManual       WishlistSortBy = "manual"       // by position ASC
-	WishlistSortAddedRecently WishlistSortBy = "addedRecently" // by wb.created_at DESC
-	WishlistSortColor        WishlistSortBy = "color"        // by color ASC NULLS LAST, position ASC
+	WishlistSortManual        WishlistSortBy = "manual"        // pinned DESC, position ASC
+	WishlistSortAddedRecently WishlistSortBy = "addedRecently" // pinned DESC, created_at DESC
+	WishlistSortColor         WishlistSortBy = "color"         // pinned DESC, color ASC NULLS LAST, position ASC
 )
 
 // WishlistRepository defines the data-access contract for wishlists.
@@ -45,6 +47,7 @@ type WishlistRepository interface {
 	RemoveBondFromWishlist(wishlistID uuid.UUID, isin string) error
 	UpdateWishlistBondColor(wishlistID uuid.UUID, isin string, color *string) error
 	UpdateWishlistBondPosition(wishlistID uuid.UUID, isin string, position int) error
+	PinWishlistBond(wishlistID uuid.UUID, isin string, isPinned bool) error
 	ReorderWishlistBonds(wishlistID uuid.UUID, orderedISINs []string) error
 }
 
@@ -110,8 +113,7 @@ func (r *wishlistRepository) UpdateWishlistName(id uuid.UUID, name string) (*mod
 	return r.GetWishlistByID(id)
 }
 
-// DeleteWishlist removes a wishlist and all its associated wishlist_bonds in a
-// single transaction to ensure consistency.
+// DeleteWishlist removes a wishlist and all its associated wishlist_bonds in a transaction.
 func (r *wishlistRepository) DeleteWishlist(id uuid.UUID) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("wishlist_id = ?", id).Delete(&models.WishlistBond{}).Error; err != nil {
@@ -128,36 +130,37 @@ func (r *wishlistRepository) DeleteWishlist(id uuid.UUID) error {
 	})
 }
 
-// GetWishlistWithBonds fetches a wishlist together with its bonds, including the
-// per-wishlist-bond color and position. The sort order is controlled by sortBy.
+// GetWishlistWithBonds fetches a wishlist and its bonds with wishlist-specific metadata.
+// Pinned bonds always appear first, then secondary sort is applied within each group.
 func (r *wishlistRepository) GetWishlistWithBonds(id uuid.UUID, sortBy WishlistSortBy) (*WishlistWithBonds, error) {
 	var wl models.Wishlist
 	if err := r.db.First(&wl, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
 
-	// Determine ORDER BY clause based on the requested sort.
-	var orderClause string
+	// Pinned bonds always float to top. Secondary sort depends on user preference.
+	var secondaryOrder string
 	switch sortBy {
 	case WishlistSortManual:
-		orderClause = "wb.position ASC"
+		secondaryOrder = "wb.position ASC"
 	case WishlistSortColor:
-		orderClause = "wb.color ASC NULLS LAST, wb.position ASC"
+		secondaryOrder = "wb.color ASC NULLS LAST, wb.position ASC"
 	default: // WishlistSortAddedRecently
-		orderClause = "wb.created_at DESC"
+		secondaryOrder = "wb.created_at DESC"
 	}
+	orderClause := "wb.is_pinned DESC, " + secondaryOrder
 
-	// Scan bond columns + wishlist-bond metadata in one JOIN query.
 	type row struct {
 		models.Bond
 		WBColor    *string `gorm:"column:wb_color"`
 		WBPosition int     `gorm:"column:wb_position"`
+		WBIsPinned bool    `gorm:"column:wb_is_pinned"`
 	}
 
 	var rows []row
 	err := r.db.
 		Table("bonds b").
-		Select("b.*, wb.color AS wb_color, wb.position AS wb_position").
+		Select("b.*, wb.color AS wb_color, wb.position AS wb_position, wb.is_pinned AS wb_is_pinned").
 		Joins("JOIN wishlist_bonds wb ON wb.bond_isin = b.isin").
 		Where("wb.wishlist_id = ?", id).
 		Order(orderClause).
@@ -172,6 +175,7 @@ func (r *wishlistRepository) GetWishlistWithBonds(id uuid.UUID, sortBy WishlistS
 			Bond:     row.Bond,
 			Color:    row.WBColor,
 			Position: row.WBPosition,
+			IsPinned: row.WBIsPinned,
 		}
 	}
 
@@ -201,12 +205,13 @@ func (r *wishlistRepository) BondExistsInWishlist(wishlistID uuid.UUID, isin str
 	return count > 0, err
 }
 
-// AddBondToWishlist inserts a wishlist_bond row with position defaulting to 0.
+// AddBondToWishlist inserts a wishlist_bond row with position 0 and unpinned by default.
 func (r *wishlistRepository) AddBondToWishlist(wishlistID uuid.UUID, isin string) error {
 	wb := models.WishlistBond{
 		WishlistID: wishlistID,
 		BondISIN:   isin,
 		Position:   0,
+		IsPinned:   false,
 	}
 	if err := r.db.Create(&wb).Error; err != nil {
 		return fmt.Errorf("adding bond to wishlist: %w", err)
@@ -228,8 +233,7 @@ func (r *wishlistRepository) RemoveBondFromWishlist(wishlistID uuid.UUID, isin s
 	return nil
 }
 
-// UpdateWishlistBondColor sets the color for a bond within a specific wishlist.
-// Passing nil clears the color (sets it to NULL).
+// UpdateWishlistBondColor sets the tag color for a bond within a specific wishlist.
 func (r *wishlistRepository) UpdateWishlistBondColor(wishlistID uuid.UUID, isin string, color *string) error {
 	result := r.db.Model(&models.WishlistBond{}).
 		Where("wishlist_id = ? AND bond_isin = ?", wishlistID, isin).
@@ -243,7 +247,7 @@ func (r *wishlistRepository) UpdateWishlistBondColor(wishlistID uuid.UUID, isin 
 	return nil
 }
 
-// UpdateWishlistBondPosition sets the display position for a bond within a wishlist.
+// UpdateWishlistBondPosition sets the manual display position for a bond in a wishlist.
 func (r *wishlistRepository) UpdateWishlistBondPosition(wishlistID uuid.UUID, isin string, position int) error {
 	result := r.db.Model(&models.WishlistBond{}).
 		Where("wishlist_id = ? AND bond_isin = ?", wishlistID, isin).
@@ -257,10 +261,26 @@ func (r *wishlistRepository) UpdateWishlistBondPosition(wishlistID uuid.UUID, is
 	return nil
 }
 
-// ReorderWishlistBonds bulk-updates position values for all bonds in a wishlist.
+// PinWishlistBond sets or clears the is_pinned flag for a bond in a wishlist.
+// Pinned bonds always appear before unpinned bonds in all sort modes.
+func (r *wishlistRepository) PinWishlistBond(wishlistID uuid.UUID, isin string, isPinned bool) error {
+	result := r.db.Model(&models.WishlistBond{}).
+		Where("wishlist_id = ? AND bond_isin = ?", wishlistID, isin).
+		Update("is_pinned", isPinned)
+	if result.Error != nil {
+		return fmt.Errorf("pinning wishlist bond: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+// ReorderWishlistBonds bulk-updates position for all bonds in a wishlist.
 // The index of each ISIN in orderedISINs becomes its new position (0-based).
-// All updates run in a single transaction; if any ISIN is not in the wishlist
-// the whole operation is rolled back.
+// Pinned bonds keep their is_pinned flag and will still appear first in queries
+// due to ORDER BY is_pinned DESC — positions only determine order within
+// the pinned group and within the unpinned group independently.
 func (r *wishlistRepository) ReorderWishlistBonds(wishlistID uuid.UUID, orderedISINs []string) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		for i, isin := range orderedISINs {

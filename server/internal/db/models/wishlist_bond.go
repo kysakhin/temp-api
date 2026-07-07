@@ -15,6 +15,7 @@ type WishlistBond struct {
 	BondISIN   string    `gorm:"primaryKey;column:bond_isin"`
 	Color      *string   `gorm:"column:color"`
 	Position   int       `gorm:"column:position;not null;default:0"`
+	IsPinned   bool      `gorm:"column:is_pinned;not null;default:false"`
 	CreatedAt  time.Time `gorm:"column:created_at;autoCreateTime"`
 }
 

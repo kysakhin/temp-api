@@ -50,6 +50,7 @@ func NewRouter(
 			// Per-bond wishlist metadata
 			wishlists.PATCH("/:wishlistId/bond/:bondIsin/color", wishlistHandler.UpdateBondColor)
 			wishlists.PATCH("/:wishlistId/bond/:bondIsin/position", wishlistHandler.UpdateBondPosition)
+			wishlists.PATCH("/:wishlistId/bond/:bondIsin/pin", wishlistHandler.PinBond)
 
 			// Bulk reorder (drag-drop)
 			wishlists.PATCH("/:wishlistId/reorder", wishlistHandler.ReorderBonds)

@@ -104,6 +104,7 @@ func (h *WishlistHandler) GetWishlist(c *gin.Context) {
 			MaturityDate:    maturityDate,
 			Color:           entry.Color,
 			Position:        entry.Position,
+			IsPinned:        entry.IsPinned,
 		}
 	}
 
@@ -307,6 +308,36 @@ func (h *WishlistHandler) RemoveBond(c *gin.Context) {
 	isin := c.Param("bondIsin")
 
 	if err := h.wishlistRepo.RemoveBondFromWishlist(wishlistID, isin); err != nil {
+		if err == gorm.ErrRecordNotFound {
+			errNotFound(c)
+			return
+		}
+		errInternal(c)
+		return
+	}
+
+	respondNoContent(c)
+}
+
+// ─── PATCH /api/v1/wishlist/:wishlistId/bond/:bondIsin/pin ───────────────────
+
+// PinBond pins or unpins a bond within a wishlist.
+// Pinned bonds always appear at the top regardless of the active sort mode.
+func (h *WishlistHandler) PinBond(c *gin.Context) {
+	wishlistID, ok := parseUUID(c, c.Param("wishlistId"))
+	if !ok {
+		return
+	}
+
+	isin := c.Param("bondIsin")
+
+	var req PinWishlistBondRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		errBadRequest(c, "isPinned must be a boolean.")
+		return
+	}
+
+	if err := h.wishlistRepo.PinWishlistBond(wishlistID, isin, req.IsPinned); err != nil {
 		if err == gorm.ErrRecordNotFound {
 			errNotFound(c)
 			return
