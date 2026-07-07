@@ -3,11 +3,17 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"os"
 )
 
 func main() {
 
 	http.HandleFunc("/bond", GetBonds)
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
 
 	http.HandleFunc("/wishlist", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -22,6 +28,6 @@ func main() {
 
 	http.HandleFunc("/wishlist/", GetWishlistByID)
 
-	fmt.Println("Listening on :8080")
-	http.ListenAndServe(":8080", nil)
+	fmt.Printf("Listening on :%s\n", port)
+	http.ListenAndServe(":"+port, nil)
 }
