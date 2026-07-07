@@ -9,7 +9,7 @@ import (
 
 // ─── Bond ────────────────────────────────────────────────────────────────────
 
-// BondDto is the API representation of a bond.
+// BondDto is the catalogue representation of a bond (no wishlist-specific fields).
 type BondDto struct {
 	ISIN            string           `json:"isin"`
 	BondName        string           `json:"bondName"`
@@ -21,7 +21,6 @@ type BondDto struct {
 	DetailURL       *string          `json:"detailUrl"`
 	Tenure          decimal.Decimal  `json:"tenure"`
 	MaturityDate    *string          `json:"maturityDate"` // ISO-8601 date string "YYYY-MM-DD"
-	Color           *string          `json:"color"`
 }
 
 // toBondDto converts a models.Bond to a BondDto.
@@ -42,15 +41,26 @@ func toBondDto(b models.Bond) BondDto {
 		DetailURL:       b.DetailURL,
 		Tenure:          b.Tenure,
 		MaturityDate:    maturityDate,
-		Color:           b.Color,
 	}
 }
 
-// CursorPage is the paginated response envelope.
-type CursorPage[T any] struct {
-	Data       []T     `json:"data"`
-	NextCursor *string `json:"nextCursor"`
-	HasNext    bool    `json:"hasNext"`
+// ─── Wishlist Bond ────────────────────────────────────────────────────────────
+
+// WishlistBondDto is the representation of a bond within a wishlist context.
+// It extends BondDto with the wishlist-specific color and display position.
+type WishlistBondDto struct {
+	ISIN            string           `json:"isin"`
+	BondName        string           `json:"bondName"`
+	Rating          *string          `json:"rating"`
+	BondYield       *decimal.Decimal `json:"bondYield"`
+	MinInvestment   *int64           `json:"minInvestment"`
+	PayoutFrequency *string          `json:"payoutFrequency"`
+	LogoURL         *string          `json:"logoUrl"`
+	DetailURL       *string          `json:"detailUrl"`
+	Tenure          decimal.Decimal  `json:"tenure"`
+	MaturityDate    *string          `json:"maturityDate"`
+	Color           *string          `json:"color"`
+	Position        int              `json:"position"`
 }
 
 // ─── Wishlist ─────────────────────────────────────────────────────────────────
@@ -66,12 +76,12 @@ type WishlistDto struct {
 
 // WishlistDetailsDto is the full representation including bonds.
 type WishlistDetailsDto struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	BondCount int       `json:"bondCount"`
-	CreatedAt string    `json:"createdAt"`
-	UpdatedAt string    `json:"updatedAt"`
-	Bonds     []BondDto `json:"bonds"`
+	ID        string            `json:"id"`
+	Name      string            `json:"name"`
+	BondCount int               `json:"bondCount"`
+	CreatedAt string            `json:"createdAt"`
+	UpdatedAt string            `json:"updatedAt"`
+	Bonds     []WishlistBondDto `json:"bonds"`
 }
 
 // formatTime converts a time.Time to an ISO-8601 UTC string.
@@ -96,7 +106,21 @@ type AddBondRequest struct {
 	BondISIN string `json:"bondIsin" binding:"required"`
 }
 
-// UpdateBondColorRequest is the body for PATCH /bond/:isin/color.
-type UpdateBondColorRequest struct {
+// UpdateWishlistBondColorRequest is the body for
+// PATCH /wishlist/:wishlistId/bond/:bondIsin/color
+type UpdateWishlistBondColorRequest struct {
 	Color *string `json:"color"`
+}
+
+// UpdateWishlistBondPositionRequest is the body for
+// PATCH /wishlist/:wishlistId/bond/:bondIsin/position
+type UpdateWishlistBondPositionRequest struct {
+	Position int `json:"position" binding:"required,min=0"`
+}
+
+// ReorderWishlistBondsRequest is the body for
+// PATCH /wishlist/:wishlistId/reorder
+// BondISINs must contain every ISIN currently in the wishlist in the desired order.
+type ReorderWishlistBondsRequest struct {
+	BondISINs []string `json:"bondIsins" binding:"required,min=1"`
 }

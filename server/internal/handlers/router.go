@@ -27,23 +27,32 @@ func NewRouter(
 
 	v1 := r.Group("/api/v1")
 	{
-		// Bond routes.
+		// ── Bond routes ──────────────────────────────────────────────────────
 		bonds := v1.Group("/bond")
 		{
 			bonds.GET("", bondHandler.GetBonds)
-			bonds.PATCH("/:isin/color", bondHandler.UpdateBondColor)
 		}
 
-		// Wishlist routes.
+		// ── Wishlist routes ───────────────────────────────────────────────────
 		wishlists := v1.Group("/wishlist")
 		{
 			wishlists.GET("", wishlistHandler.GetWishlists)
 			wishlists.POST("", wishlistHandler.CreateWishlist)
+
 			wishlists.GET("/:wishlistId", wishlistHandler.GetWishlist)
 			wishlists.PATCH("/:wishlistId", wishlistHandler.UpdateWishlist)
 			wishlists.DELETE("/:wishlistId", wishlistHandler.DeleteWishlist)
+
+			// Bond membership
 			wishlists.POST("/:wishlistId/bond", wishlistHandler.AddBond)
 			wishlists.DELETE("/:wishlistId/bond/:bondIsin", wishlistHandler.RemoveBond)
+
+			// Per-bond wishlist metadata
+			wishlists.PATCH("/:wishlistId/bond/:bondIsin/color", wishlistHandler.UpdateBondColor)
+			wishlists.PATCH("/:wishlistId/bond/:bondIsin/position", wishlistHandler.UpdateBondPosition)
+
+			// Bulk reorder (drag-drop)
+			wishlists.PATCH("/:wishlistId/reorder", wishlistHandler.ReorderBonds)
 		}
 	}
 

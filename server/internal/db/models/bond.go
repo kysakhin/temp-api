@@ -20,7 +20,6 @@ type Bond struct {
 	DetailURL       *string          `gorm:"column:detail_url"`
 	Tenure          decimal.Decimal  `gorm:"column:tenure;type:decimal(6,2);not null"`
 	MaturityDate    *time.Time       `gorm:"column:maturity_date;type:date"`
-	Color           *string          `gorm:"column:color"`
 }
 
 func (Bond) TableName() string {

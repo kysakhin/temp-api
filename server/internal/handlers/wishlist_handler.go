@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -63,14 +64,17 @@ func (h *WishlistHandler) GetWishlists(c *gin.Context) {
 
 // ─── GET /api/v1/wishlist/:wishlistId ────────────────────────────────────────
 
-// GetWishlist returns a single wishlist with all its bonds (latest added first).
+// GetWishlist returns a single wishlist with all its bonds.
+// Query param: sortBy — manual | addedRecently (default) | color
 func (h *WishlistHandler) GetWishlist(c *gin.Context) {
 	id, ok := parseUUID(c, c.Param("wishlistId"))
 	if !ok {
 		return
 	}
 
-	result, err := h.wishlistRepo.GetWishlistWithBonds(id)
+	sortBy := parseWishlistSortBy(c.Query("sortBy"))
+
+	result, err := h.wishlistRepo.GetWishlistWithBonds(id, sortBy)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			errNotFound(c)
@@ -80,9 +84,27 @@ func (h *WishlistHandler) GetWishlist(c *gin.Context) {
 		return
 	}
 
-	bondDtos := make([]BondDto, len(result.Bonds))
-	for i, b := range result.Bonds {
-		bondDtos[i] = toBondDto(b)
+	bondDtos := make([]WishlistBondDto, len(result.Bonds))
+	for i, entry := range result.Bonds {
+		var maturityDate *string
+		if entry.Bond.MaturityDate != nil {
+			s := entry.Bond.MaturityDate.Format("2006-01-02")
+			maturityDate = &s
+		}
+		bondDtos[i] = WishlistBondDto{
+			ISIN:            entry.ISIN,
+			BondName:        entry.BondName,
+			Rating:          entry.Rating,
+			BondYield:       entry.BondYield,
+			MinInvestment:   entry.MinInvestment,
+			PayoutFrequency: entry.PayoutFrequency,
+			LogoURL:         entry.LogoURL,
+			DetailURL:       entry.DetailURL,
+			Tenure:          entry.Tenure,
+			MaturityDate:    maturityDate,
+			Color:           entry.Color,
+			Position:        entry.Position,
+		}
 	}
 
 	respondOK(c, WishlistDetailsDto{
@@ -227,7 +249,7 @@ func (h *WishlistHandler) AddBond(c *gin.Context) {
 		return
 	}
 
-	// Bond must exist.
+	// Bond must exist in the catalogue.
 	if _, err := h.bondRepo.GetBondByISIN(req.BondISIN); err != nil {
 		if err == gorm.ErrRecordNotFound {
 			errNotFound(c)
@@ -237,7 +259,7 @@ func (h *WishlistHandler) AddBond(c *gin.Context) {
 		return
 	}
 
-	// Bond must not already be in the wishlist.
+	// Bond must not already be in this wishlist.
 	exists, err := h.wishlistRepo.BondExistsInWishlist(wishlistID, req.BondISIN)
 	if err != nil {
 		errInternal(c)
@@ -296,9 +318,107 @@ func (h *WishlistHandler) RemoveBond(c *gin.Context) {
 	respondNoContent(c)
 }
 
+// ─── PATCH /api/v1/wishlist/:wishlistId/bond/:bondIsin/color ─────────────────
+
+// UpdateBondColor sets the tag color for a bond within a specific wishlist.
+func (h *WishlistHandler) UpdateBondColor(c *gin.Context) {
+	wishlistID, ok := parseUUID(c, c.Param("wishlistId"))
+	if !ok {
+		return
+	}
+
+	isin := c.Param("bondIsin")
+
+	var req UpdateWishlistBondColorRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		errBadRequest(c, "Invalid request body.")
+		return
+	}
+
+	if err := h.wishlistRepo.UpdateWishlistBondColor(wishlistID, isin, req.Color); err != nil {
+		if err == gorm.ErrRecordNotFound {
+			errNotFound(c)
+			return
+		}
+		errInternal(c)
+		return
+	}
+
+	respondNoContent(c)
+}
+
+// ─── PATCH /api/v1/wishlist/:wishlistId/bond/:bondIsin/position ──────────────
+
+// UpdateBondPosition sets the manual display position for a bond in a wishlist.
+func (h *WishlistHandler) UpdateBondPosition(c *gin.Context) {
+	wishlistID, ok := parseUUID(c, c.Param("wishlistId"))
+	if !ok {
+		return
+	}
+
+	isin := c.Param("bondIsin")
+
+	var req UpdateWishlistBondPositionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		errBadRequest(c, "position must be a non-negative integer.")
+		return
+	}
+
+	if err := h.wishlistRepo.UpdateWishlistBondPosition(wishlistID, isin, req.Position); err != nil {
+		if err == gorm.ErrRecordNotFound {
+			errNotFound(c)
+			return
+		}
+		errInternal(c)
+		return
+	}
+
+	respondNoContent(c)
+}
+
+// ─── PATCH /api/v1/wishlist/:wishlistId/reorder ──────────────────────────────
+
+// ReorderBonds bulk-updates the position of all bonds in a wishlist.
+// Flutter sends the complete ordered list after a drag-drop; the index becomes
+// the new position value for each bond.
+func (h *WishlistHandler) ReorderBonds(c *gin.Context) {
+	wishlistID, ok := parseUUID(c, c.Param("wishlistId"))
+	if !ok {
+		return
+	}
+
+	var req ReorderWishlistBondsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		errBadRequest(c, "bondIsins is required and must be a non-empty array.")
+		return
+	}
+
+	// Validate that the number of ISINs matches the wishlist bond count.
+	count, err := h.wishlistRepo.CountBondsInWishlist(wishlistID)
+	if err != nil {
+		errInternal(c)
+		return
+	}
+	if int64(len(req.BondISINs)) != count {
+		errBadRequest(c, fmt.Sprintf("bondIsins must contain all %d bonds in the wishlist.", count))
+		return
+	}
+
+	if err := h.wishlistRepo.ReorderWishlistBonds(wishlistID, req.BondISINs); err != nil {
+		if err == gorm.ErrRecordNotFound {
+			errBadRequest(c, "One or more bondIsins do not exist in this wishlist.")
+			return
+		}
+		errInternal(c)
+		return
+	}
+
+	respondNoContent(c)
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-// parseUUID parses a path param as a UUID and writes a 400 if it is invalid.
+// parseUUID parses a path param as a UUID and writes a 400 if invalid.
 func parseUUID(c *gin.Context, raw string) (uuid.UUID, bool) {
 	id, err := uuid.Parse(raw)
 	if err != nil {
@@ -308,8 +428,7 @@ func parseUUID(c *gin.Context, raw string) (uuid.UUID, bool) {
 	return id, true
 }
 
-// validateWishlistName checks name length and blank constraints.
-// It writes the error response and returns a non-nil error on failure.
+// validateWishlistName checks length and blank constraints.
 func validateWishlistName(c *gin.Context, name string) error {
 	trimmed := strings.TrimSpace(name)
 	if trimmed == "" {
@@ -321,4 +440,17 @@ func validateWishlistName(c *gin.Context, name string) error {
 		return gorm.ErrInvalidValue
 	}
 	return nil
+}
+
+// parseWishlistSortBy maps the raw query param to a repository sort constant.
+// Defaults to addedRecently if unrecognised.
+func parseWishlistSortBy(raw string) repository.WishlistSortBy {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "manual":
+		return repository.WishlistSortManual
+	case "color":
+		return repository.WishlistSortColor
+	default: // "addedRecently" or anything else
+		return repository.WishlistSortAddedRecently
+	}
 }
