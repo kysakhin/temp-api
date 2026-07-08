@@ -1,9 +1,11 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // apiError is the standard error envelope returned by all endpoints.
@@ -44,4 +46,15 @@ func errNotFound(c *gin.Context) {
 
 func errInternal(c *gin.Context) {
 	respondError(c, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", "Something went wrong.")
+}
+
+func errConflict(c *gin.Context, code, message string) {
+	respondError(c, http.StatusConflict, code, message)
+}
+
+// isUniqueViolation reports whether err originated from a PostgreSQL
+// unique-constraint violation (SQLSTATE 23505).
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }

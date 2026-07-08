@@ -162,6 +162,10 @@ func (h *WishlistHandler) CreateWishlist(c *gin.Context) {
 
 	wl, err := h.wishlistRepo.CreateWishlist(req.Name)
 	if err != nil {
+		if isUniqueViolation(err) {
+			errConflict(c, "WISHLIST_ALREADY_EXISTS", "A wishlist with this name already exists.")
+			return
+		}
 		errInternal(c)
 		return
 	}
@@ -211,6 +215,10 @@ func (h *WishlistHandler) UpdateWishlist(c *gin.Context) {
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			errNotFound(c)
+			return
+		}
+		if isUniqueViolation(err) {
+			errConflict(c, "WISHLIST_ALREADY_EXISTS", "A wishlist with this name already exists.")
 			return
 		}
 		errInternal(c)
