@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'services/api_service.dart';
 import 'services/bonds_provider.dart';
@@ -32,8 +33,8 @@ class BondScannerApp extends StatelessWidget {
             seedColor: AppColors.navy,
             primary: AppColors.navy,
           ),
-          // Changed font to Inter across the entire app
-          fontFamily: 'Inter', 
+          // Apply inter globally
+          textTheme: GoogleFonts.interTextTheme(), 
         ),
         home: const RootTabs(),
       ),
@@ -58,12 +59,12 @@ class _RootTabsState extends State<RootTabs> {
       extendBody: true,
       body: IndexedStack(index: _index, children: _screens),
       
-      // Navigation Bar
+      // Liquid Glass Navigation Bar
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.only(left: 24, right: 24, bottom: 16),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(28),
+            borderRadius: BorderRadius.circular(40),
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
               child: Container(
@@ -110,7 +111,7 @@ class _RootTabsState extends State<RootTabs> {
               child: Icon(
                 icon, 
                 color: color, 
-                size: isSelected ? 28 : 26
+                size: isSelected ? 26 : 26
               ),
             ),
             const SizedBox(height: 4),

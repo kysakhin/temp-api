@@ -12,7 +12,7 @@ class AppColors {
   static const divider = Color(0xFFE7EAEF);
   static const chipBg = Color(0xFFEFF2F6);
 
-  // tag palette offered in color picker (Mac-tags style)
+  // tag palette offered in color picker
   static const tagPalette = <Color>[
     Color(0xFFD1483A), // red
     Color(0xFFE08A2C), // orange
