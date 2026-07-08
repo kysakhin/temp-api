@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/bond.dart';
-import '../services/api_service.dart';
 import '../services/bonds_provider.dart';
-import '../services/wishlist_provider.dart';
+import '../services/search_provider.dart';
+import '../utils/add_to_wishlist.dart';
 import '../utils/constants.dart';
 import '../utils/deep_link.dart';
 import '../widgets/bond_tile.dart';
 import '../widgets/bond_action_sheet.dart';
-//import '../widgets/color_picker_sheet.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -23,7 +22,6 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   void initState() {
     super.initState();
-    // Auto-focus the search bar when the screen is navigated to
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _focusNode.requestFocus();
     });
@@ -45,39 +43,12 @@ class _SearchScreenState extends State<SearchScreen> {
         await openBondInApp(bond.isin, webFallback: bond.detailUrl);
         break;
       case BondAction.addToWishlist:
-        final wp = context.read<WishlistProvider>();
-        if (wp.wishlists.isEmpty) await wp.load();
         if (!mounted) return;
-        await showAddToWishlistSheet(
-          context,
-          wishlists: wp.wishlists,
-          alreadyIn: {},
-          onAdd: (wishlistId) async {
-            try {
-              await context.read<ApiService>().addBond(wishlistId, bond.isin);
-              await wp.load();
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Bond successfully added to wishlist!'),
-                    backgroundColor: AppColors.green,
-                  ),
-                );
-              }
-            } catch (e) {
-              _showError(e.toString());
-            }
-          },
-        );
+        await showAddToWishlistFlow(context, isins: [bond.isin]);
         break;
       default:
         break;
     }
-  }
-
-  void _showError(String msg) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(msg), backgroundColor: AppColors.red));
   }
 
   @override
@@ -88,23 +59,22 @@ class _SearchScreenState extends State<SearchScreen> {
         backgroundColor: Colors.transparent,
         foregroundColor: AppColors.navyDeep,
         title: const Text(
-          'Search', 
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 24, letterSpacing: -0.5)
+          'Search',
+          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 24, letterSpacing: -0.5),
         ),
         elevation: 0,
-        scrolledUnderElevation: 0, 
+        scrolledUnderElevation: 0,
       ),
-      body: Consumer<BondsProvider>(
-        builder: (context, prov, _) {
+      body: Consumer2<BondsProvider, SearchProvider>(
+        builder: (context, bondsProv, searchProv, _) {
           return Column(
             children: [
-              // Search Bar
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                 child: TextField(
                   controller: _controller,
                   focusNode: _focusNode,
-                  onChanged: (val) => prov.search(val),
+                  onChanged: (val) => searchProv.search(val),
                   style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
                   decoration: InputDecoration(
                     hintText: 'Search ISIN or bond name...',
@@ -128,17 +98,15 @@ class _SearchScreenState extends State<SearchScreen> {
                   ),
                 ),
               ),
-              
-              // Display Toggle Header (Shares the same state as Bonds Screen)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
                 alignment: Alignment.centerRight,
                 child: GestureDetector(
                   onTap: () {
-                    final nextMetric = prov.displayMetric == 'bondYield' 
-                        ? 'minInvestment' 
+                    final nextMetric = bondsProv.displayMetric == 'bondYield'
+                        ? 'minInvestment'
                         : 'bondYield';
-                    prov.setDisplayMetric(nextMetric);
+                    bondsProv.setDisplayMetric(nextMetric);
                   },
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -146,7 +114,7 @@ class _SearchScreenState extends State<SearchScreen> {
                       const Icon(Icons.sync_alt, size: 16, color: AppColors.navyDeep),
                       const SizedBox(width: 6),
                       Text(
-                        prov.displayMetric == 'bondYield' ? 'Interest' : 'Min. Investment',
+                        bondsProv.displayMetric == 'bondYield' ? 'Interest' : 'Min. Investment',
                         style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
@@ -160,10 +128,8 @@ class _SearchScreenState extends State<SearchScreen> {
                 ),
               ),
               const SizedBox(height: 8),
-              
-              // Search Results List
               Expanded(
-                child: _buildList(prov),
+                child: _buildList(searchProv, bondsProv.displayMetric),
               ),
             ],
           );
@@ -172,18 +138,18 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  Widget _buildList(BondsProvider prov) {
+  Widget _buildList(SearchProvider prov, String displayMetric) {
     if (prov.searchLoading) {
       return const Center(child: CircularProgressIndicator(color: AppColors.navyDeep));
     }
     if (prov.searchQuery.trim().isEmpty) {
       return const Center(
-        child: Text('Type an ISIN or bond name to search', style: TextStyle(color: AppColors.muted))
+        child: Text('Type an ISIN or bond name to search', style: TextStyle(color: AppColors.muted)),
       );
     }
     if (prov.searchResults.isEmpty) {
       return const Center(
-        child: Text('No bonds found matching your search.', style: TextStyle(color: AppColors.muted))
+        child: Text('No bonds found matching your search.', style: TextStyle(color: AppColors.muted)),
       );
     }
     return ListView.builder(
@@ -194,7 +160,7 @@ class _SearchScreenState extends State<SearchScreen> {
         final bond = prov.searchResults[i];
         return BondTile(
           bond: bond,
-          sortBy: prov.displayMetric, 
+          sortBy: displayMetric,
           onTap: () => openBondInApp(bond.isin, webFallback: bond.detailUrl),
           onLongPress: () => _handleLongPress(bond),
         );

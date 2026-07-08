@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'services/api_service.dart';
 import 'services/bonds_provider.dart';
+import 'services/search_provider.dart';
 import 'services/wishlist_provider.dart';
 import 'screens/bonds_screen.dart';
 import 'screens/search_screen.dart'; // Added new search screen
@@ -22,6 +23,7 @@ class BondScannerApp extends StatelessWidget {
       providers: [
         Provider<ApiService>.value(value: api),
         ChangeNotifierProvider(create: (_) => BondsProvider(api)),
+        ChangeNotifierProvider(create: (_) => SearchProvider(api)),
         ChangeNotifierProvider(create: (_) => WishlistProvider(api)),
       ],
       child: MaterialApp(

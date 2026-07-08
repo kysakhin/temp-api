@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../config/app_config.dart';
 
 class AppColors {
   static const bg = Color(0xFFF7F8FA);
@@ -24,7 +25,7 @@ class AppColors {
   ];
 }
 
-const apiBaseUrl = 'http://192.168.0.105:8080/api/v1';
+const apiBaseUrl = AppConfig.apiBaseUrl;
 
 const bondScannerScheme = 'bondscanner://bond/';
 const bondScannerPlayStore =

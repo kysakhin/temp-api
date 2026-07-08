@@ -45,6 +45,8 @@ Future<BondAction?> showBondActionSheet(
             _tile(ctx, Icons.checklist, 'Select multiple', BondAction.selectMultiple),
             _tile(ctx, Icons.playlist_add, 'Add to wishlist', BondAction.addToWishlist),
           ],
+          if (inWishlistContext)
+            _tile(ctx, Icons.checklist, 'Select multiple', BondAction.selectMultiple),
           if (inWishlistContext) ...[
             _tile(ctx, Icons.remove_circle_outline, 'Remove from this wishlist',
                 BondAction.removeFromWishlist, danger: true),

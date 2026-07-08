@@ -3,14 +3,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/bond.dart';
-import '../services/api_service.dart';
 import '../services/bonds_provider.dart';
-import '../services/wishlist_provider.dart';
+import '../utils/add_to_wishlist.dart';
 import '../utils/constants.dart';
 import '../utils/deep_link.dart';
 import '../widgets/bond_tile.dart';
 import '../widgets/bond_action_sheet.dart';
-import '../widgets/color_picker_sheet.dart';
 
 class BondsScreen extends StatefulWidget {
   const BondsScreen({super.key});
@@ -45,43 +43,12 @@ class _BondsScreenState extends State<BondsScreen> {
         });
         break;
       case BondAction.addToWishlist:
-        final wp = context.read<WishlistProvider>();
-        if (wp.wishlists.isEmpty) await wp.load();
         if (!mounted) return;
-        await showAddToWishlistSheet(
-          context,
-          wishlists: wp.wishlists,
-          alreadyIn: {},
-          onAdd: (wishlistId) async {
-            try {
-              await context.read<ApiService>().addBond(wishlistId, bond.isin);
-              await wp.load();
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Bond successfully added to wishlist!'),
-                    backgroundColor: AppColors.green,
-                  ),
-                );
-              }
-            } catch (e) {
-              String errorMsg = e.toString();
-              if (errorMsg.contains('409')) {
-                errorMsg = 'Bond is already in this wishlist.';
-              }
-              _showError(errorMsg);
-            }
-          },
-        );
+        await showAddToWishlistFlow(context, isins: [bond.isin]);
         break;
       default:
         break;
     }
-  }
-
-  void _showError(String msg) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(msg), backgroundColor: AppColors.red));
   }
 
   void _toggleSelection(String isin) {
@@ -95,46 +62,15 @@ class _BondsScreenState extends State<BondsScreen> {
   }
 
   Future<void> _addMultipleToWishlist() async {
-    final wp = context.read<WishlistProvider>();
-    if (wp.wishlists.isEmpty) await wp.load();
     if (!mounted) return;
-    
-    await showAddToWishlistSheet(
-      context,
-      wishlists: wp.wishlists,
-      alreadyIn: {}, 
-      requiredCapacity: _selectedIsins.length,
-      onAdd: (wishlistId) async {
-        try {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Adding bonds...'), duration: Duration(seconds: 1)),
-          );
-          // Fires off concurrent requests to add all selected bonds rapidly
-          await Future.wait(
-            _selectedIsins.map((isin) => context.read<ApiService>().addBond(wishlistId, isin))
-          );
-          await wp.load();
-          if (mounted) {
-            setState(() {
-              _isMultiSelect = false;
-              _selectedIsins.clear();
-            });
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Bonds successfully added to wishlist!'),
-                backgroundColor: AppColors.green,
-              ),
-            );
-          }
-        } catch (e) {
-          String errorMsg = e.toString();
-          if (errorMsg.contains('409')) {
-            errorMsg = 'One or more bonds are already in this wishlist.';
-          }
-          _showError(errorMsg);
-        }
-      },
-    );
+    final isins = List<String>.from(_selectedIsins);
+    await showAddToWishlistFlow(context, isins: isins, onSuccess: () {
+      if (!mounted) return;
+      setState(() {
+        _isMultiSelect = false;
+        _selectedIsins.clear();
+      });
+    });
   }
 
   String _getSortLabel(String s) {

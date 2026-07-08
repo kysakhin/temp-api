@@ -1,5 +1,3 @@
-//screens/wishlists_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/bond.dart';
@@ -8,9 +6,12 @@ import '../services/api_service.dart';
 import '../services/wishlist_provider.dart';
 import '../utils/constants.dart';
 import '../utils/deep_link.dart';
-import '../widgets/bond_tile.dart';
 import '../widgets/bond_action_sheet.dart';
 import '../widgets/color_picker_sheet.dart';
+import 'widgets/wishlist_tabs.dart';
+import 'widgets/wishlist_sort_row.dart';
+import 'widgets/wishlist_bond_list.dart';
+import 'widgets/wishlist_dialogs.dart';
 
 class WishlistsScreen extends StatefulWidget {
   const WishlistsScreen({super.key});
@@ -24,7 +25,7 @@ class _WishlistsScreenState extends State<WishlistsScreen> {
   bool _loadingDetails = false;
   String _sortBy = 'manual';
   String _sortOrder = 'desc';
-  
+
   bool _isMultiSelect = false;
   final Set<String> _selectedIsins = {};
   int? _lastSeenBondCount;
@@ -56,7 +57,7 @@ class _WishlistsScreenState extends State<WishlistsScreen> {
   Future<void> _setActive(String id) async {
     if (!mounted) return;
     final prov = context.read<WishlistProvider>();
-    
+
     setState(() {
       _activeId = id;
       _isMultiSelect = false;
@@ -65,7 +66,7 @@ class _WishlistsScreenState extends State<WishlistsScreen> {
       _sortOrder = prov.getSortOrderPref(id);
       _lastSeenBondCount = null;
     });
-    
+
     final index = prov.sorted.indexWhere((w) => w.id == id);
     if (index != -1 && _tabsScrollController.hasClients) {
       final offset = index * 120.0;
@@ -75,7 +76,7 @@ class _WishlistsScreenState extends State<WishlistsScreen> {
         curve: Curves.easeOut,
       );
     }
-    
+
     await _loadDetails();
   }
 
@@ -85,9 +86,9 @@ class _WishlistsScreenState extends State<WishlistsScreen> {
     try {
       final api = context.read<ApiService>();
       final data = await api.getWishlist(
-        _activeId!, 
-        sortBy: _sortBy, 
-        sortOrder: _sortOrder
+        _activeId!,
+        sortBy: _sortBy,
+        sortOrder: _sortOrder,
       );
       if (mounted) setState(() => _details = data);
     } catch (e) {
@@ -108,9 +109,9 @@ class _WishlistsScreenState extends State<WishlistsScreen> {
       _snack('Maximum of $maxWishlists wishlists allowed.');
       return;
     }
-    final name = await _promptName(context, title: 'New wishlist');
+    final name = await promptWishlistName(context, title: 'New wishlist');
     if (name == null || name.trim().isEmpty) return;
-    
+
     final ok = await prov.create(name.trim());
     if (ok && mounted) {
       _setActive(prov.wishlists.last.id);
@@ -124,7 +125,7 @@ class _WishlistsScreenState extends State<WishlistsScreen> {
   }
 
   Future<void> _rename(Wishlist w) async {
-    final name = await _promptName(context, title: 'Rename wishlist', initial: w.name);
+    final name = await promptWishlistName(context, title: 'Rename wishlist', initial: w.name);
     if (name == null || name.trim().isEmpty) return;
     try {
       await context.read<WishlistProvider>().rename(w.id, name.trim());
@@ -138,36 +139,24 @@ class _WishlistsScreenState extends State<WishlistsScreen> {
   }
 
   Future<void> _delete(Wishlist w) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete wishlist?'),
-        content: Text('"${w.name}" and all its bonds will be removed.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Delete', style: TextStyle(color: AppColors.red))),
-        ],
-      ),
-    );
-    if (confirmed == true) {
-      try {
-        final prov = context.read<WishlistProvider>();
-        await prov.remove(w.id);
-        if (_activeId == w.id) {
-          if (prov.wishlists.isNotEmpty) {
-            _setActive(prov.wishlists.first.id);
-          } else {
-            setState(() {
-              _activeId = null;
-              _details = null;
-            });
-          }
+    final confirmed = await confirmDeleteWishlist(context, w.name);
+    if (!confirmed) return;
+
+    try {
+      final prov = context.read<WishlistProvider>();
+      await prov.remove(w.id);
+      if (_activeId == w.id) {
+        if (prov.wishlists.isNotEmpty) {
+          _setActive(prov.wishlists.first.id);
+        } else {
+          setState(() {
+            _activeId = null;
+            _details = null;
+          });
         }
-      } catch (e) {
-        _snack(e.toString());
       }
+    } catch (e) {
+      _snack(e.toString());
     }
   }
 
@@ -187,7 +176,7 @@ class _WishlistsScreenState extends State<WishlistsScreen> {
       await context.read<ApiService>().reorderBonds(_activeId!, isins);
     } catch (e) {
       _snack('Failed to save order: ${e.toString()}');
-      _loadDetails(); 
+      _loadDetails();
     }
   }
 
@@ -198,16 +187,66 @@ class _WishlistsScreenState extends State<WishlistsScreen> {
     });
   }
 
-  String _getSortLabel(String s) {
-    switch (s) {
-      case 'manual': return 'Manual Order';
-      case 'addedRecently': return 'Added Recently';
-      case 'color': return 'Color';
-      case 'yield': return 'Yield';
-      case 'minInvestment': return 'Min. Investment';
-      case 'tenure': return 'Tenure';
-      case 'rating': return 'Rating';
-      default: return 'Sort';
+  Future<void> _handleLongPress(Bond bond) async {
+    final action = await showBondActionSheet(context, bond: bond, inWishlistContext: true);
+    if (!mounted || action == null) return;
+
+    switch (action) {
+      case BondAction.openApp:
+        await openBondInApp(bond.isin, webFallback: bond.detailUrl);
+        break;
+      case BondAction.togglePin:
+        try {
+          await context.read<ApiService>().setBondPinned(_activeId!, bond.isin, !bond.isPinned);
+          await _loadDetails();
+        } catch (e) {
+          _snack(e.toString());
+        }
+        break;
+      case BondAction.setColor:
+        final hex = await showColorPickerSheet(context, current: bond.color);
+        if (!mounted) return;
+        if (hex != null) {
+          try {
+            await context.read<ApiService>().updateWishlistBondColor(_activeId!, bond.isin, hex);
+            await _loadDetails();
+          } catch (e) {
+            _snack(e.toString());
+          }
+        }
+        break;
+      case BondAction.selectMultiple:
+        _enterMultiSelect(bond.isin);
+        break;
+      case BondAction.removeFromWishlist:
+        try {
+          await context.read<ApiService>().removeBond(_activeId!, bond.isin);
+          await context.read<WishlistProvider>().load();
+          await _loadDetails();
+        } catch (e) {
+          _snack(e.toString());
+        }
+        break;
+      default:
+        break;
+    }
+  }
+
+  Future<void> _pinSelected() async {
+    if (_selectedIsins.isEmpty || _activeId == null) return;
+    setState(() => _loadingDetails = true);
+    try {
+      await Future.wait(
+        _selectedIsins.map((isin) => context.read<ApiService>().setBondPinned(_activeId!, isin, true)),
+      );
+      setState(() {
+        _isMultiSelect = false;
+        _selectedIsins.clear();
+      });
+      await _loadDetails();
+    } catch (e) {
+      _snack(e.toString());
+      setState(() => _loadingDetails = false);
     }
   }
 
@@ -282,13 +321,12 @@ class _WishlistsScreenState extends State<WishlistsScreen> {
     setState(() => _loadingDetails = true);
     try {
       await Future.wait(
-        _selectedIsins.map((isin) => context.read<ApiService>().removeBond(_activeId!, isin))
+        _selectedIsins.map((isin) => context.read<ApiService>().removeBond(_activeId!, isin)),
       );
       setState(() {
         _isMultiSelect = false;
         _selectedIsins.clear();
       });
-      // refresh wishlist list too, bondCount was stale otherwise -> false "Full" bug
       await context.read<WishlistProvider>().load();
       await _loadDetails();
     } catch (e) {
@@ -303,7 +341,7 @@ class _WishlistsScreenState extends State<WishlistsScreen> {
     setState(() => _loadingDetails = true);
     try {
       await Future.wait(
-        _selectedIsins.map((isin) => context.read<ApiService>().updateWishlistBondColor(_activeId!, isin, hex))
+        _selectedIsins.map((isin) => context.read<ApiService>().updateWishlistBondColor(_activeId!, isin, hex)),
       );
       setState(() {
         _isMultiSelect = false;
@@ -319,29 +357,6 @@ class _WishlistsScreenState extends State<WishlistsScreen> {
   void _snack(String msg) {
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(msg), backgroundColor: AppColors.red));
-  }
-
-  Future<String?> _promptName(BuildContext context,
-      {required String title, String? initial}) {
-    final controller = TextEditingController(text: initial);
-    return showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLength: 50,
-          decoration: const InputDecoration(hintText: 'Wishlist name'),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, controller.text),
-              child: const Text('Save')),
-        ],
-      ),
-    );
   }
 
   @override
@@ -363,6 +378,10 @@ class _WishlistsScreenState extends State<WishlistsScreen> {
             elevation: 0,
             actions: [
               IconButton(
+                icon: const Icon(Icons.push_pin_outlined),
+                onPressed: _selectedIsins.isEmpty ? null : _pinSelected,
+              ),
+              IconButton(
                 icon: const Icon(Icons.palette_outlined),
                 onPressed: _selectedIsins.isEmpty ? null : _colorSelected,
               ),
@@ -376,17 +395,17 @@ class _WishlistsScreenState extends State<WishlistsScreen> {
             backgroundColor: Colors.transparent,
             foregroundColor: AppColors.navyDeep,
             title: const Text(
-              'Wishlists', 
-              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 24, letterSpacing: -0.5)
+              'Wishlists',
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 24, letterSpacing: -0.5),
             ),
             elevation: 0,
-            scrolledUnderElevation: 0, 
+            scrolledUnderElevation: 0,
             actions: [
               Padding(
                 padding: const EdgeInsets.only(right: 8.0),
                 child: IconButton(
-                  icon: const Icon(Icons.add_circle_outline, size: 28), 
-                  onPressed: _create
+                  icon: const Icon(Icons.add_circle_outline, size: 28),
+                  onPressed: _create,
                 ),
               ),
             ],
@@ -407,15 +426,13 @@ class _WishlistsScreenState extends State<WishlistsScreen> {
 
           final activeW = prov.wishlists.where((w) => w.id == _activeId).firstOrNull;
           if (activeW == null && _activeId == null) {
-             WidgetsBinding.instance.addPostFrameCallback((_) {
-               if (mounted && prov.wishlists.isNotEmpty) {
-                 _setActive(prov.wishlists.first.id);
-               }
-             });
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted && prov.wishlists.isNotEmpty) {
+                _setActive(prov.wishlists.first.id);
+              }
+            });
           }
 
-          // provider's bondCount changed elsewhere (e.g. bonds added from
-          // bonds_screen) but our cached _details is stale -> reload
           if (activeW != null &&
               !_loadingDetails &&
               _details != null &&
@@ -429,12 +446,41 @@ class _WishlistsScreenState extends State<WishlistsScreen> {
 
           return Column(
             children: [
-              _buildTabs(prov),
-              if (activeW != null) _buildSortOptionsRow(activeW),
+              WishlistTabs(
+                wishlists: prov.sorted,
+                activeId: _activeId,
+                onTabSelected: _setActive,
+                scrollController: _tabsScrollController,
+              ),
+              if (activeW != null)
+                WishlistSortRow(
+                  sortBy: _sortBy,
+                  sortOrder: _sortOrder,
+                  onSortTap: _showSortDialog,
+                  onSortOrderToggle: () {
+                    setState(() => _sortOrder = _sortOrder == 'asc' ? 'desc' : 'asc');
+                    if (_activeId != null) {
+                      context.read<WishlistProvider>().setSortOrderPref(_activeId!, _sortOrder);
+                    }
+                    _loadDetails();
+                  },
+                  onRename: () => _rename(activeW),
+                  onDelete: () => _delete(activeW),
+                ),
               Expanded(
                 child: RefreshIndicator(
                   onRefresh: _refresh,
-                  child: _buildBondsList(),
+                  child: WishlistBondList(
+                    loadingDetails: _loadingDetails,
+                    details: _details,
+                    sortBy: _sortBy,
+                    isMultiSelect: _isMultiSelect,
+                    selectedIsins: _selectedIsins,
+                    onBondTap: (isin) => openBondInApp(isin, webFallback: _details?.bonds.firstWhere((b) => b.isin == isin).detailUrl),
+                    onBondLongPress: _handleLongPress,
+                    onToggleSelection: _toggleSelection,
+                    onReorder: _onReorder,
+                  ),
                 ),
               ),
             ],
@@ -442,173 +488,6 @@ class _WishlistsScreenState extends State<WishlistsScreen> {
         },
       ),
     );
-  }
-
-  Widget _buildTabs(WishlistProvider prov) {
-    return SizedBox(
-      height: 48,
-      child: ListView.builder(
-        controller: _tabsScrollController,
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: prov.sorted.length,
-        itemBuilder: (context, i) {
-          final w = prov.sorted[i];
-          final isActive = w.id == _activeId;
-          return GestureDetector(
-            onTap: () => _setActive(w.id),
-            child: Container(
-              margin: const EdgeInsets.only(right: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: isActive ? AppColors.navyDeep : Colors.transparent,
-                border: Border.all(color: isActive ? AppColors.navyDeep : AppColors.divider),
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 160),
-                child: Text(
-                  w.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: isActive ? Colors.white : AppColors.navyDeep,
-                    fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
-                    fontSize: 14.5,
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildSortOptionsRow(Wishlist activeW) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 8, 8, 4),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.divider)),
-      ),
-      child: Row(
-        children: [
-          InkWell(
-            onTap: _showSortDialog,
-            borderRadius: BorderRadius.circular(8),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-              child: Row(
-                children: [
-                  const Icon(Icons.sort, size: 18, color: AppColors.navyDeep),
-                  const SizedBox(width: 6),
-                  Text(
-                    _getSortLabel(_sortBy),
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.navyDeep,
-                      decoration: TextDecoration.underline,
-                      decorationStyle: TextDecorationStyle.dotted,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 4),
-          IconButton(
-            icon: Icon(
-              _sortOrder == 'asc' ? Icons.arrow_upward : Icons.arrow_downward, 
-              size: 20, 
-              color: AppColors.navyDeep
-            ),
-            onPressed: () {
-              setState(() => _sortOrder = _sortOrder == 'asc' ? 'desc' : 'asc');
-              if (_activeId != null) {
-                context.read<WishlistProvider>().setSortOrderPref(_activeId!, _sortOrder);
-              }
-              _loadDetails();
-            },
-          ),
-          const Spacer(),
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_horiz, color: AppColors.muted),
-            onSelected: (v) {
-              if (v == 'rename') _rename(activeW);
-              if (v == 'delete') _delete(activeW);
-            },
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'rename', child: Text('Rename List')),
-              PopupMenuItem(value: 'delete', child: Text('Delete List', style: TextStyle(color: AppColors.red))),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBondsList() {
-    if (_loadingDetails) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.navyDeep));
-    }
-    if (_details == null || _details!.bonds.isEmpty) {
-      return const Center(
-        child: Text('No bonds in this wishlist', style: TextStyle(color: AppColors.muted))
-      );
-    }
-
-    if (_sortBy == 'manual' && !_isMultiSelect) {
-      return ReorderableListView.builder(
-        buildDefaultDragHandles: false,
-        onReorder: _onReorder,
-        padding: const EdgeInsets.only(bottom: 120),
-        itemCount: _details!.bonds.length,
-        itemBuilder: (context, i) {
-          final bond = _details!.bonds[i];
-          return BondTile(
-            key: ValueKey(bond.isin),
-            bond: bond,
-            showDragHandle: true,
-            reorderIndex: i, 
-            sortBy: _sortBy,
-            isMultiSelectMode: false,
-            isSelected: false,
-            onTap: () => openBondInApp(bond.isin, webFallback: bond.detailUrl),
-            onLongPress: () => _enterMultiSelect(bond.isin),
-          );
-        },
-      );
-    } else {
-      return ListView.builder(
-        padding: const EdgeInsets.only(bottom: 120),
-        physics: const AlwaysScrollableScrollPhysics(),
-        itemCount: _details!.bonds.length,
-        itemBuilder: (context, i) {
-          final bond = _details!.bonds[i];
-          return BondTile(
-            key: ValueKey(bond.isin),
-            bond: bond,
-            showDragHandle: false,
-            sortBy: _sortBy,
-            isMultiSelectMode: _isMultiSelect,
-            isSelected: _selectedIsins.contains(bond.isin),
-            onToggleSelection: () => _toggleSelection(bond.isin),
-            onTap: () {
-              if (_isMultiSelect) {
-                _toggleSelection(bond.isin);
-              } else {
-                openBondInApp(bond.isin, webFallback: bond.detailUrl);
-              }
-            },
-            onLongPress: () {
-              if (!_isMultiSelect) _enterMultiSelect(bond.isin);
-            },
-          );
-        },
-      );
-    }
   }
 
   Widget _buildEmptyState() {
