@@ -28,7 +28,7 @@ class ApiService {
     }
   }
 
-  // Bonds 
+  // ── Bonds 
   
   Future<List<Bond>> getBonds({
     String sortBy = 'bondYield',
@@ -43,6 +43,14 @@ class ApiService {
     return (j['data'] as List).map((e) => Bond.fromJson(e)).toList();
   }
 
+  // New fuzzy search endpoint integration
+  Future<List<Bond>> searchBonds(String query) async {
+    final r = await _client.get(_u('/bond/search', {'q': query}));
+    _check(r);
+    final j = jsonDecode(r.body);
+    return (j['data'] as List).map((e) => Bond.fromJson(e)).toList();
+  }
+
   Future<void> updateWishlistBondColor(String wishlistId, String isin, String? colorHex) async {
     final r = await _client.patch(
       _u('/wishlist/$wishlistId/bond/$isin/color'),
@@ -52,7 +60,7 @@ class ApiService {
     _check(r);
   }
 
-  // Wishlists
+  // ── Wishlists ──────────────────────────────────────────────────────────
   
   Future<List<Wishlist>> getWishlists() async {
     final r = await _client.get(_u('/wishlist'));

@@ -6,6 +6,7 @@ import 'services/api_service.dart';
 import 'services/bonds_provider.dart';
 import 'services/wishlist_provider.dart';
 import 'screens/bonds_screen.dart';
+import 'screens/search_screen.dart'; // Added new search screen
 import 'screens/wishlists_screen.dart';
 import 'utils/constants.dart';
 
@@ -33,7 +34,6 @@ class BondScannerApp extends StatelessWidget {
             seedColor: AppColors.navy,
             primary: AppColors.navy,
           ),
-          // Apply inter globally
           textTheme: GoogleFonts.interTextTheme(), 
         ),
         home: const RootTabs(),
@@ -50,12 +50,12 @@ class RootTabs extends StatefulWidget {
 
 class _RootTabsState extends State<RootTabs> {
   int _index = 0;
-  final _screens = const [BondsScreen(), WishlistsScreen()];
+  // Added the new SearchScreen as the middle tab
+  final _screens = const [BondsScreen(), SearchScreen(), WishlistsScreen()]; 
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // extendBody allows the list content to render underneath the floating glass bar
       extendBody: true,
       body: IndexedStack(index: _index, children: _screens),
       
@@ -64,7 +64,7 @@ class _RootTabsState extends State<RootTabs> {
         child: Padding(
           padding: const EdgeInsets.only(left: 24, right: 24, bottom: 16),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(40),
+            borderRadius: BorderRadius.circular(28),
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
               child: Container(
@@ -81,7 +81,8 @@ class _RootTabsState extends State<RootTabs> {
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
                     _navItem(Icons.list_alt, 'Bonds', 0),
-                    _navItem(Icons.bookmark_outline, 'Wishlists', 1),
+                    _navItem(Icons.search, 'Search', 1), // Added 3rd navigation item
+                    _navItem(Icons.bookmark_outline, 'Wishlists', 2),
                   ],
                 ),
               ),
@@ -100,7 +101,7 @@ class _RootTabsState extends State<RootTabs> {
       behavior: HitTestBehavior.opaque,
       onTap: () => setState(() => _index = index),
       child: SizedBox(
-        width: 90,
+        width: 80, // Slightly reduced width to fit 3 perfectly
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -111,7 +112,7 @@ class _RootTabsState extends State<RootTabs> {
               child: Icon(
                 icon, 
                 color: color, 
-                size: isSelected ? 26 : 26
+                size: isSelected ? 28 : 26
               ),
             ),
             const SizedBox(height: 4),

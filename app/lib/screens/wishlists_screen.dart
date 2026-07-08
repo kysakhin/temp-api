@@ -28,8 +28,15 @@ class _WishlistsScreenState extends State<WishlistsScreen> {
     }
     final name = await _promptName(context, title: 'New wishlist');
     if (name == null || name.trim().isEmpty) return;
+    
     final ok = await prov.create(name.trim());
-    if (!ok && mounted) _snack(prov.error ?? 'Could not create wishlist.');
+    if (!ok && mounted) {
+      String errorMsg = prov.error ?? 'Could not create wishlist.';
+      if (errorMsg.contains('409')) {
+        errorMsg = 'Wishlist with that name already exists.';
+      }
+      _snack(errorMsg);
+    }
   }
 
   Future<void> _rename(Wishlist w) async {
@@ -38,7 +45,11 @@ class _WishlistsScreenState extends State<WishlistsScreen> {
     try {
       await context.read<WishlistProvider>().rename(w.id, name.trim());
     } catch (e) {
-      _snack(e.toString());
+      String errorMsg = e.toString();
+      if (errorMsg.contains('409')) {
+        errorMsg = 'Wishlist with that name already exists.';
+      }
+      _snack(errorMsg);
     }
   }
 
@@ -98,7 +109,6 @@ class _WishlistsScreenState extends State<WishlistsScreen> {
     return Scaffold(
       backgroundColor: AppColors.bg,
       appBar: AppBar(
-        
         backgroundColor: Colors.transparent,
         foregroundColor: AppColors.navyDeep,
         title: const Text(
