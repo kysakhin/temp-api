@@ -10,19 +10,18 @@ class BondsProvider extends ChangeNotifier {
   bool loading = false;
   String? error;
   
-  // Defaulting to highest yield first
-  String currentSortBy = 'bondYield';
-  String currentSortOrder = 'desc'; 
+  // Used purely for toggling what is displayed in the UI
+  String displayMetric = 'bondYield';
 
   Future<void> loadInitial() async {
     loading = true;
     error = null;
     notifyListeners();
     try {
-      // The API now returns the full list in one go
+      // The API now just fetches the default list (e.g. highest yield)
       bonds = await api.getBonds(
-        sortBy: currentSortBy, 
-        sortOrder: currentSortOrder
+        sortBy: 'bondYield', 
+        sortOrder: 'desc'
       );
     } catch (e) {
       error = e.toString();
@@ -40,15 +39,10 @@ class BondsProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> setSort(String sortBy) async {
-    if (currentSortBy == sortBy) {
-      // Toggle sort order if they tap the same sort option
-      currentSortOrder = currentSortOrder == 'desc' ? 'asc' : 'desc';
-    } else {
-      // Default to descending when switching to a new metric (e.g. highest yield)
-      currentSortBy = sortBy;
-      currentSortOrder = 'desc';
-    }
-    await loadInitial();
+  // Simply swaps the UI metric without calling the API
+  void setDisplayMetric(String metric) {
+    if (displayMetric == metric) return;
+    displayMetric = metric;
+    notifyListeners();
   }
 }

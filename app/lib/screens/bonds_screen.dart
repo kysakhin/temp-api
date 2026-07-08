@@ -43,7 +43,6 @@ class _BondsScreenState extends State<BondsScreen> {
           alreadyIn: {},
           onAdd: (wishlistId) async {
             try {
-              // Removed context.read<BondsProvider>() as addBond isn't there
               await context.read<ApiService>().addBond(wishlistId, bond.isin);
               await wp.load();
               if (mounted) {
@@ -84,33 +83,24 @@ class _BondsScreenState extends State<BondsScreen> {
         builder: (context, prov, _) {
           return Column(
             children: [
-              // Sorting Header
+              // Display Toggle Header (1-click direct toggle)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 alignment: Alignment.centerRight,
-                child: PopupMenuButton<String>(
-                  initialValue: prov.currentSortBy,
-                  onSelected: (val) => prov.setSort(val),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  itemBuilder: (ctx) => [
-                    // Using new API sorting keys
-                    const PopupMenuItem(value: 'bondYield', child: Text('Sort by Interest')),
-                    const PopupMenuItem(value: 'minInvestment', child: Text('Sort by Min. Investment')),
-                  ],
+                child: GestureDetector(
+                  onTap: () {
+                    final nextMetric = prov.displayMetric == 'bondYield' 
+                        ? 'minInvestment' 
+                        : 'bondYield';
+                    prov.setDisplayMetric(nextMetric);
+                  },
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Arrow changes direction based on sort order
-                      Icon(
-                        prov.currentSortOrder == 'desc' ? Icons.arrow_downward : Icons.arrow_upward, 
-                        size: 16, 
-                        color: AppColors.navyDeep
-                      ),
-                      const SizedBox(width: 4),
                       const Icon(Icons.sync_alt, size: 16, color: AppColors.navyDeep),
                       const SizedBox(width: 6),
                       Text(
-                        prov.currentSortBy == 'bondYield' ? 'Interest' : 'Min. Investment',
+                        prov.displayMetric == 'bondYield' ? 'Interest' : 'Min. Investment',
                         style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
@@ -150,7 +140,7 @@ class _BondsScreenState extends State<BondsScreen> {
           final bond = prov.bonds[i];
           return BondTile(
             bond: bond,
-            sortBy: prov.currentSortBy, // Pass the active metric down to the tile
+            sortBy: prov.displayMetric, // Passes the chosen view toggle to the tile
             onTap: () => openBondInApp(bond.isin, webFallback: bond.detailUrl),
             onLongPress: () => _handleLongPress(bond),
           );

@@ -24,7 +24,7 @@ class AppColors {
   ];
 }
 
-const apiBaseUrl = 'https://temp-api-jxfn.onrender.com/api/v1';
+const apiBaseUrl = 'http://192.168.0.105:8080/api/v1';
 
 const bondScannerScheme = 'bondscanner://bond/';
 const bondScannerPlayStore =
