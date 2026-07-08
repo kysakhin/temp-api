@@ -31,6 +31,7 @@ func NewRouter(
 		bonds := v1.Group("/bond")
 		{
 			bonds.GET("", bondHandler.GetBonds)
+			bonds.GET("/search", bondHandler.SearchBonds)
 		}
 
 		// ── Wishlist routes ───────────────────────────────────────────────────

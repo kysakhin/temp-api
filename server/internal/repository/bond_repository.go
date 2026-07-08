@@ -38,6 +38,7 @@ type BondQueryParams struct {
 type BondRepository interface {
 	ListBonds(params BondQueryParams) ([]models.Bond, error)
 	GetBondByISIN(isin string) (*models.Bond, error)
+	SearchBonds(query string) ([]models.Bond, error)
 }
 
 type bondRepository struct {
@@ -82,4 +83,14 @@ func (r *bondRepository) GetBondByISIN(isin string) (*models.Bond, error) {
 		return nil, err
 	}
 	return &bond, nil
+}
+
+// SearchBonds returns bonds matching the query using fuzzy search.
+func (r *bondRepository) SearchBonds(query string) ([]models.Bond, error) {
+	var bonds []models.Bond
+	likeQuery := "%" + query + "%"
+	if err := r.db.Where("bond_name ILIKE ? OR isin ILIKE ?", likeQuery, likeQuery).Find(&bonds).Error; err != nil {
+		return nil, fmt.Errorf("searching bonds: %w", err)
+	}
+	return bonds, nil
 }

@@ -42,3 +42,27 @@ func (h *BondHandler) GetBonds(c *gin.Context) {
 
 	respondOK(c, data)
 }
+
+// SearchBonds handles GET /api/v1/bond/search
+// Returns bonds matching the search query. No pagination.
+// Query params: q
+func (h *BondHandler) SearchBonds(c *gin.Context) {
+	query := strings.TrimSpace(c.Query("q"))
+	if query == "" {
+		respondOK(c, []BondDto{})
+		return
+	}
+
+	bonds, err := h.repo.SearchBonds(query)
+	if err != nil {
+		errInternal(c)
+		return
+	}
+
+	data := make([]BondDto, len(bonds))
+	for i, b := range bonds {
+		data[i] = toBondDto(b)
+	}
+
+	respondOK(c, data)
+}

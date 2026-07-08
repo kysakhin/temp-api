@@ -30,6 +30,9 @@ const (
 	WishlistSortManual        WishlistSortBy = "manual"        // pinned DESC, position ASC
 	WishlistSortAddedRecently WishlistSortBy = "addedRecently" // pinned DESC, created_at DESC
 	WishlistSortColor         WishlistSortBy = "color"         // pinned DESC, color ASC NULLS LAST, position ASC
+	WishlistSortYield         WishlistSortBy = "yield"         // pinned DESC, bond_yield DESC NULLS LAST, position ASC
+	WishlistSortMinInvestment WishlistSortBy = "minInvestment" // pinned DESC, min_investment ASC NULLS LAST, position ASC
+	WishlistSortTenure        WishlistSortBy = "tenure"        // pinned DESC, tenure ASC, position ASC
 )
 
 // WishlistRepository defines the data-access contract for wishlists.
@@ -141,12 +144,18 @@ func (r *wishlistRepository) GetWishlistWithBonds(id uuid.UUID, sortBy WishlistS
 	// Pinned bonds always float to top. Secondary sort depends on user preference.
 	var secondaryOrder string
 	switch sortBy {
-	case WishlistSortManual:
-		secondaryOrder = "wb.position ASC"
+	case WishlistSortAddedRecently:
+		secondaryOrder = "wb.created_at DESC"
 	case WishlistSortColor:
 		secondaryOrder = "wb.color ASC NULLS LAST, wb.position ASC"
-	default: // WishlistSortAddedRecently
-		secondaryOrder = "wb.created_at DESC"
+	case WishlistSortYield:
+		secondaryOrder = "b.bond_yield DESC NULLS LAST, wb.position ASC"
+	case WishlistSortMinInvestment:
+		secondaryOrder = "b.min_investment ASC NULLS LAST, wb.position ASC"
+	case WishlistSortTenure:
+		secondaryOrder = "b.tenure ASC, wb.position ASC"
+	default: // WishlistSortManual
+		secondaryOrder = "wb.position ASC"
 	}
 	orderClause := "wb.is_pinned DESC, " + secondaryOrder
 

@@ -65,7 +65,7 @@ func (h *WishlistHandler) GetWishlists(c *gin.Context) {
 // ─── GET /api/v1/wishlist/:wishlistId ────────────────────────────────────────
 
 // GetWishlist returns a single wishlist with all its bonds.
-// Query param: sortBy — manual | addedRecently (default) | color
+// Query param: sortBy — manual (default) | addedRecently | color | yield | minInvestment | tenure
 func (h *WishlistHandler) GetWishlist(c *gin.Context) {
 	id, ok := parseUUID(c, c.Param("wishlistId"))
 	if !ok {
@@ -474,14 +474,20 @@ func validateWishlistName(c *gin.Context, name string) error {
 }
 
 // parseWishlistSortBy maps the raw query param to a repository sort constant.
-// Defaults to addedRecently if unrecognised.
+// Defaults to manual if unrecognised.
 func parseWishlistSortBy(raw string) repository.WishlistSortBy {
 	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "manual":
-		return repository.WishlistSortManual
+	case "addedrecently":
+		return repository.WishlistSortAddedRecently
 	case "color":
 		return repository.WishlistSortColor
-	default: // "addedRecently" or anything else
-		return repository.WishlistSortAddedRecently
+	case "yield":
+		return repository.WishlistSortYield
+	case "mininvestment":
+		return repository.WishlistSortMinInvestment
+	case "tenure":
+		return repository.WishlistSortTenure
+	default: // "manual" or anything else
+		return repository.WishlistSortManual
 	}
 }
