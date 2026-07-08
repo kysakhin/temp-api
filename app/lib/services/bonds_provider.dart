@@ -18,19 +18,33 @@ class BondsProvider extends ChangeNotifier {
   String searchQuery = '';
   Timer? _debounce;
   
+  // Sorting state
+  String sortBy = 'bondYield';
+  String sortOrder = 'desc';
+
   // UI Display Metric toggle
-  String displayMetric = 'bondYield';
+  String _displayMetricOverride = '';
+  
+  String get displayMetric {
+    if (_displayMetricOverride.isNotEmpty) {
+      return _displayMetricOverride;
+    }
+    return sortBy == 'minInvestment' ? 'minInvestment' : 'bondYield';
+  }
 
   Future<void> loadInitial() async {
     loading = true;
     error = null;
     notifyListeners();
     try {
-      // Always fetches the default catalog view
-      bonds = await api.getBonds(
-        sortBy: 'bondYield', 
-        sortOrder: 'desc'
-      );
+      if (searchQuery.trim().isNotEmpty) {
+        searchResults = await api.searchBonds(searchQuery.trim());
+      } else {
+        bonds = await api.getBonds(
+          sortBy: sortBy, 
+          sortOrder: sortOrder
+        );
+      }
     } catch (e) {
       error = e.toString();
     } finally {
@@ -39,7 +53,6 @@ class BondsProvider extends ChangeNotifier {
     }
   }
 
-  // Searches bonds independently so we don't overwrite the main catalog list
   void search(String query) {
     searchQuery = query;
     if (_debounce?.isActive ?? false) {
@@ -49,7 +62,7 @@ class BondsProvider extends ChangeNotifier {
     if (query.trim().isEmpty) {
       searchResults = [];
       searchLoading = false;
-      notifyListeners();
+      loadInitial(); 
       return;
     }
 
@@ -68,12 +81,10 @@ class BondsProvider extends ChangeNotifier {
   }
 
   void applyColor(String isin, String? color) {
-    // Update main list
     final i = bonds.indexWhere((b) => b.isin == isin);
     if (i != -1) {
       bonds[i] = bonds[i].copyWith(color: color);
     }
-    // Update search list so they stay in sync
     final j = searchResults.indexWhere((b) => b.isin == isin);
     if (j != -1) {
       searchResults[j] = searchResults[j].copyWith(color: color);
@@ -81,9 +92,21 @@ class BondsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> setSort(String newSortBy) async {
+    if (sortBy == newSortBy) return;
+    sortBy = newSortBy;
+    _displayMetricOverride = ''; // Clear override when true backend sort changes
+    await loadInitial();
+  }
+
+  Future<void> toggleSortOrder() async {
+    sortOrder = sortOrder == 'asc' ? 'desc' : 'asc';
+    await loadInitial();
+  }
+
+  // Purely visual toggle for screens like Search that don't hit the sort API
   void setDisplayMetric(String metric) {
-    if (displayMetric == metric) return;
-    displayMetric = metric;
+    _displayMetricOverride = metric;
     notifyListeners();
   }
 }

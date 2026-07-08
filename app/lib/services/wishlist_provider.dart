@@ -10,18 +10,12 @@ class WishlistProvider extends ChangeNotifier {
   bool loading = false;
   String? error;
 
-  // In-memory storage of sort preferences per wishlist
+  // In-memory storage for sort preferences per wishlist
   final Map<String, String> _sortPrefs = {};
-
-  String getSortPref(String id) => _sortPrefs[id] ?? 'addedRecently';
-
-  void setSortPref(String id, String sort) {
-    _sortPrefs[id] = sort;
-  }
+  final Map<String, String> _sortOrderPrefs = {};
 
   List<Wishlist> get sorted {
     final list = [...wishlists];
-    // Sort by created at
     list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return list;
   }
@@ -66,5 +60,21 @@ class WishlistProvider extends ChangeNotifier {
     await api.deleteWishlist(id);
     wishlists.removeWhere((w) => w.id == id);
     notifyListeners();
+  }
+
+  String getSortPref(String wishlistId) {
+    return _sortPrefs[wishlistId] ?? 'manual';
+  }
+
+  void setSortPref(String wishlistId, String sort) {
+    _sortPrefs[wishlistId] = sort;
+  }
+  
+  String getSortOrderPref(String wishlistId) {
+    return _sortOrderPrefs[wishlistId] ?? 'desc';
+  }
+
+  void setSortOrderPref(String wishlistId, String order) {
+    _sortOrderPrefs[wishlistId] = order;
   }
 }

@@ -65,6 +65,7 @@ Future<void> showAddToWishlistSheet(
   BuildContext context, {
   required List<Wishlist> wishlists,
   required Set<String> alreadyIn,
+  int requiredCapacity = 1,
   required Future<void> Function(String wishlistId) onAdd,
 }) {
   return showModalBottomSheet(
@@ -92,7 +93,8 @@ Future<void> showAddToWishlistSheet(
                     style: TextStyle(color: AppColors.muted)),
               ),
             ...wishlists.map((w) {
-              final full = w.bondCount >= maxBondsPerWishlist;
+              final remaining = maxBondsPerWishlist - w.bondCount;
+              final full = remaining < requiredCapacity;
               final already = alreadyIn.contains(w.id);
               return ListTile(
                 title: Text(w.name),
@@ -100,7 +102,7 @@ Future<void> showAddToWishlistSheet(
                 trailing: already
                     ? const Icon(Icons.check_circle, color: AppColors.green)
                     : full
-                        ? const Text('Full', style: TextStyle(color: AppColors.muted))
+                        ? Text(remaining == 0 ? 'Full' : 'Needs $requiredCapacity slots', style: const TextStyle(color: AppColors.muted, fontSize: 12))
                         : null,
                 enabled: !already && !full,
                 onTap: (already || full)

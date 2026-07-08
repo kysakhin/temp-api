@@ -9,6 +9,9 @@ class BondTile extends StatelessWidget {
   final bool showDragHandle;
   final String sortBy;
   final int? reorderIndex;
+  final bool isMultiSelectMode;
+  final bool isSelected;
+  final VoidCallback? onToggleSelection;
 
   const BondTile({
     super.key,
@@ -18,6 +21,9 @@ class BondTile extends StatelessWidget {
     this.showDragHandle = false,
     this.sortBy = 'bondYield',
     this.reorderIndex,
+    this.isMultiSelectMode = false,
+    this.isSelected = false,
+    this.onToggleSelection,
   });
 
   Color? get _tagColor {
@@ -36,11 +42,21 @@ class BondTile extends StatelessWidget {
       onLongPress: onLongPress,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: const BoxDecoration(
-          border: Border(bottom: BorderSide(color: AppColors.divider)),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.navyDeep.withOpacity(0.06) : null,
+          border: const Border(bottom: BorderSide(color: AppColors.divider)),
         ),
         child: Row(
           children: [
+            if (isMultiSelectMode)
+              Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: Icon(
+                  isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
+                  color: isSelected ? AppColors.navyDeep : AppColors.muted,
+                  size: 24,
+                ),
+              ),
             if (tag != null)
               Container(
                 width: 4,
@@ -133,8 +149,20 @@ class BondTile extends StatelessWidget {
       );
     } else {
       final yield_ = bond.bondYield;
+      String displayYield = '—';
+      
+      if (yield_ != null) {
+        // Use the exact string representation from the double parsed from DB
+        displayYield = yield_.toString();
+        // Clean up trailing '.0' if it is a whole number like '15.0'
+        if (displayYield.endsWith('.0')) {
+          displayYield = displayYield.substring(0, displayYield.length - 2);
+        }
+        displayYield += '%';
+      }
+      
       return Text(
-        yield_ != null ? '${_formatYield(yield_)}%' : '—',
+        displayYield,
         style: const TextStyle(
           fontSize: 15,
           fontWeight: FontWeight.w700,
@@ -142,24 +170,6 @@ class BondTile extends StatelessWidget {
         ),
       );
     }
-  }
-
-  
-  String _formatYield(double y) {
-    if (y > 0 && y < 1.0) {
-      y = y * 100;
-    }
-    
-    
-    String formatted = y.toStringAsFixed(4);
-    
-    // Aggressively strip all trailing zeros to reveal the EXACT decimal precision requested
-    if (formatted.contains('.')) {
-      formatted = formatted.replaceAll(RegExp(r'0*$'), '');
-      formatted = formatted.replaceAll(RegExp(r'\.$'), '');
-    }
-    
-    return formatted;
   }
 }
 
