@@ -1,3 +1,5 @@
+//screens/wishlists_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/bond.dart';
@@ -25,6 +27,7 @@ class _WishlistsScreenState extends State<WishlistsScreen> {
   
   bool _isMultiSelect = false;
   final Set<String> _selectedIsins = {};
+  int? _lastSeenBondCount;
 
   final ScrollController _tabsScrollController = ScrollController();
 
@@ -60,6 +63,7 @@ class _WishlistsScreenState extends State<WishlistsScreen> {
       _selectedIsins.clear();
       _sortBy = prov.getSortPref(id);
       _sortOrder = prov.getSortOrderPref(id);
+      _lastSeenBondCount = null;
     });
     
     final index = prov.sorted.indexWhere((w) => w.id == id);
@@ -284,6 +288,8 @@ class _WishlistsScreenState extends State<WishlistsScreen> {
         _isMultiSelect = false;
         _selectedIsins.clear();
       });
+      // refresh wishlist list too, bondCount was stale otherwise -> false "Full" bug
+      await context.read<WishlistProvider>().load();
       await _loadDetails();
     } catch (e) {
       _snack(e.toString());
@@ -376,11 +382,6 @@ class _WishlistsScreenState extends State<WishlistsScreen> {
             elevation: 0,
             scrolledUnderElevation: 0, 
             actions: [
-              if (_activeId != null && _details != null && _details!.bonds.isNotEmpty)
-                TextButton(
-                  onPressed: () => setState(() => _isMultiSelect = true),
-                  child: const Text('Select', style: TextStyle(color: AppColors.navyDeep, fontWeight: FontWeight.w600, fontSize: 16)),
-                ),
               Padding(
                 padding: const EdgeInsets.only(right: 8.0),
                 child: IconButton(
@@ -411,6 +412,19 @@ class _WishlistsScreenState extends State<WishlistsScreen> {
                  _setActive(prov.wishlists.first.id);
                }
              });
+          }
+
+          // provider's bondCount changed elsewhere (e.g. bonds added from
+          // bonds_screen) but our cached _details is stale -> reload
+          if (activeW != null &&
+              !_loadingDetails &&
+              _details != null &&
+              activeW.bondCount != _details!.bonds.length &&
+              _lastSeenBondCount != activeW.bondCount) {
+            _lastSeenBondCount = activeW.bondCount;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) _loadDetails();
+            });
           }
 
           return Column(

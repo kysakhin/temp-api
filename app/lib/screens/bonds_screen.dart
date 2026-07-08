@@ -1,3 +1,5 @@
+//screens/bonds_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/bond.dart';
@@ -35,6 +37,12 @@ class _BondsScreenState extends State<BondsScreen> {
     switch (action) {
       case BondAction.openApp:
         await openBondInApp(bond.isin, webFallback: bond.detailUrl);
+        break;
+      case BondAction.selectMultiple:
+        setState(() {
+          _isMultiSelect = true;
+          _selectedIsins.add(bond.isin);
+        });
         break;
       case BondAction.addToWishlist:
         final wp = context.read<WishlistProvider>();
@@ -196,14 +204,7 @@ class _BondsScreenState extends State<BondsScreen> {
               style: TextStyle(fontWeight: FontWeight.w800, fontSize: 24, letterSpacing: -0.5)
             ),
             elevation: 0,
-            scrolledUnderElevation: 0, 
-            actions: [
-              TextButton(
-                onPressed: () => setState(() => _isMultiSelect = true),
-                child: const Text('Select', style: TextStyle(color: AppColors.navyDeep, fontWeight: FontWeight.w600, fontSize: 16)),
-              ),
-              const SizedBox(width: 8),
-            ],
+            scrolledUnderElevation: 0,
           ),
       body: Consumer<BondsProvider>(
         builder: (context, prov, _) {

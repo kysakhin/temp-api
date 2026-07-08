@@ -1,9 +1,11 @@
+//widgets/bond_action_sheet.dart
+
 import 'package:flutter/material.dart';
 import '../models/bond.dart';
 import '../models/wishlist.dart';
 import '../utils/constants.dart';
 
-enum BondAction { openApp, setColor, addToWishlist, removeFromWishlist, togglePin }
+enum BondAction { openApp, setColor, addToWishlist, removeFromWishlist, togglePin, selectMultiple }
 
 Future<BondAction?> showBondActionSheet(
   BuildContext context, {
@@ -28,7 +30,8 @@ Future<BondAction?> showBondActionSheet(
                   style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
             ),
           ),
-          _tile(ctx, Icons.open_in_new, 'Open in BondScanner app', BondAction.openApp),
+          if (inWishlistContext)
+            _tile(ctx, Icons.open_in_new, 'Open in BondScanner app', BondAction.openApp),
           if (inWishlistContext) ...[
             _tile(
               ctx, 
@@ -38,8 +41,10 @@ Future<BondAction?> showBondActionSheet(
             ),
             _tile(ctx, Icons.label_outline, 'Set tag color', BondAction.setColor),
           ],
-          if (!inWishlistContext)
+          if (!inWishlistContext) ...[
+            _tile(ctx, Icons.checklist, 'Select multiple', BondAction.selectMultiple),
             _tile(ctx, Icons.playlist_add, 'Add to wishlist', BondAction.addToWishlist),
+          ],
           if (inWishlistContext) ...[
             _tile(ctx, Icons.remove_circle_outline, 'Remove from this wishlist',
                 BondAction.removeFromWishlist, danger: true),
