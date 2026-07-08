@@ -65,7 +65,8 @@ func (h *WishlistHandler) GetWishlists(c *gin.Context) {
 // ─── GET /api/v1/wishlist/:wishlistId ────────────────────────────────────────
 
 // GetWishlist returns a single wishlist with all its bonds.
-// Query param: sortBy — manual (default) | addedRecently | color | yield | minInvestment | tenure | rating
+// Query params: sortBy — manual (default) | addedRecently | color | yield | minInvestment | tenure | rating
+//              sortOrder — asc (default) | desc
 func (h *WishlistHandler) GetWishlist(c *gin.Context) {
 	id, ok := parseUUID(c, c.Param("wishlistId"))
 	if !ok {
@@ -73,8 +74,9 @@ func (h *WishlistHandler) GetWishlist(c *gin.Context) {
 	}
 
 	sortBy := parseWishlistSortBy(c.Query("sortBy"))
+	sortOrder := parseWishlistSortOrder(c.Query("sortOrder"))
 
-	result, err := h.wishlistRepo.GetWishlistWithBonds(id, sortBy)
+	result, err := h.wishlistRepo.GetWishlistWithBonds(id, sortBy, sortOrder)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			errNotFound(c)
@@ -517,5 +519,16 @@ func parseWishlistSortBy(raw string) repository.WishlistSortBy {
 		return repository.WishlistSortRating
 	default: // "manual" or anything else
 		return repository.WishlistSortManual
+	}
+}
+
+// parseWishlistSortOrder normalises the sortOrder query param.
+// Defaults to "asc" for all sorts except addedRecently which defaults to "desc".
+func parseWishlistSortOrder(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "desc":
+		return "ASC"
+	default:
+		return "DESC"
 	}
 }

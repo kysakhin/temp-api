@@ -45,7 +45,7 @@ type WishlistRepository interface {
 	CreateWishlist(name string) (*models.Wishlist, error)
 	UpdateWishlistName(id uuid.UUID, name string) (*models.Wishlist, error)
 	DeleteWishlist(id uuid.UUID) error
-	GetWishlistWithBonds(id uuid.UUID, sortBy WishlistSortBy) (*WishlistWithBonds, error)
+	GetWishlistWithBonds(id uuid.UUID, sortBy WishlistSortBy, sortOrder string) (*WishlistWithBonds, error)
 	CountBondsInWishlist(id uuid.UUID) (int64, error)
 	BondExistsInWishlist(wishlistID uuid.UUID, isin string) (bool, error)
 	AddBondToWishlist(wishlistID uuid.UUID, isin string) error
@@ -148,28 +148,38 @@ func (r *wishlistRepository) DeleteWishlist(id uuid.UUID) error {
 
 // GetWishlistWithBonds fetches a wishlist and its bonds with wishlist-specific metadata.
 // Pinned bonds always appear first, then secondary sort is applied within each group.
-func (r *wishlistRepository) GetWishlistWithBonds(id uuid.UUID, sortBy WishlistSortBy) (*WishlistWithBonds, error) {
+func (r *wishlistRepository) GetWishlistWithBonds(id uuid.UUID, sortBy WishlistSortBy, sortOrder string) (*WishlistWithBonds, error) {
 	var wl models.Wishlist
 	if err := r.db.First(&wl, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
 
 	// Pinned bonds always float to top. Secondary sort depends on user preference.
+	// sortOrder is "ASC" or "DESC"; for addedRecently the direction is inverted (desc = oldest first).
 	var secondaryOrder string
 	switch sortBy {
 	case WishlistSortAddedRecently:
-		secondaryOrder = "wb.created_at DESC"
+		// For time-based sort, desc = newest first (natural); asc = oldest first
+		if sortOrder == "ASC" {
+			secondaryOrder = "wb.created_at ASC"
+		} else {
+			secondaryOrder = "wb.created_at DESC"
+		}
 	case WishlistSortColor:
-		secondaryOrder = "wb.color ASC NULLS LAST, wb.position ASC"
+		secondaryOrder = "wb.color " + sortOrder + " NULLS LAST, wb.position ASC"
 	case WishlistSortYield:
-		secondaryOrder = "b.bond_yield DESC NULLS LAST, wb.position ASC"
-	case "minInvestment":
-		secondaryOrder = "b.min_investment ASC NULLS LAST, wb.position ASC"
+		secondaryOrder = "b.yield " + sortOrder + " NULLS LAST, wb.position ASC"
+	case WishlistSortMinInvestment:
+		secondaryOrder = "b.min_investment " + sortOrder + " NULLS LAST, wb.position ASC"
 	case WishlistSortTenure:
-		secondaryOrder = "b.tenure ASC, wb.position ASC"
+		secondaryOrder = "b.tenure " + sortOrder + ", wb.position ASC"
 	case WishlistSortRating:
-		secondaryOrder = "array_position(ARRAY['AAA', 'AA+', 'AA', 'AA-', 'A+', 'A', 'A-', 'BBB+', 'BBB', 'BBB-', 'BB+', 'BB', 'BB-', 'B+', 'B', 'B-', 'CCC+', 'CCC', 'CCC-', 'CC', 'C', 'D']::varchar[], REPLACE(b.rating, '−', '-')) ASC NULLS LAST, wb.position ASC"
-	default: // WishlistSortManual
+		if sortOrder == "DESC" {
+			secondaryOrder = "array_position(ARRAY['D', 'C', 'CC', 'CCC-', 'CCC', 'CCC+', 'B-', 'B', 'B+', 'BB-', 'BB', 'BB+', 'BBB-', 'BBB', 'BBB+', 'A-', 'A', 'A+', 'AA-', 'AA', 'AA+', 'AAA']::varchar[], REPLACE(b.rating, '\u2212', '-')) ASC NULLS LAST, wb.position ASC"
+		} else {
+			secondaryOrder = "array_position(ARRAY['AAA', 'AA+', 'AA', 'AA-', 'A+', 'A', 'A-', 'BBB+', 'BBB', 'BBB-', 'BB+', 'BB', 'BB-', 'B+', 'B', 'B-', 'CCC+', 'CCC', 'CCC-', 'CC', 'C', 'D']::varchar[], REPLACE(b.rating, '\u2212', '-')) ASC NULLS LAST, wb.position ASC"
+		}
+	default: // WishlistSortManual — position is always ASC regardless of sortOrder
 		secondaryOrder = "wb.position ASC"
 	}
 	orderClause := "wb.is_pinned DESC, " + secondaryOrder
