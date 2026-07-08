@@ -74,18 +74,23 @@ class _BondsScreenState extends State<BondsScreen> {
     return Scaffold(
       backgroundColor: AppColors.bg,
       appBar: AppBar(
-        backgroundColor: AppColors.navy,
-        foregroundColor: Colors.white,
-        title: const Text('Available bonds', style: TextStyle(fontWeight: FontWeight.w700)),
+        
+        backgroundColor: Colors.transparent,
+        foregroundColor: AppColors.navyDeep,
+        title: const Text(
+          'Available bonds', 
+          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 24, letterSpacing: -0.5)
+        ),
         elevation: 0,
+        scrolledUnderElevation: 0, 
       ),
       body: Consumer<BondsProvider>(
         builder: (context, prov, _) {
           return Column(
             children: [
-              // Display Toggle Header (1-click direct toggle)
+              // Display Toggle Header
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
                 alignment: Alignment.centerRight,
                 child: GestureDetector(
                   onTap: () {
@@ -113,6 +118,7 @@ class _BondsScreenState extends State<BondsScreen> {
                   ),
                 ),
               ),
+              const SizedBox(height: 8),
               // Bonds List
               Expanded(
                 child: _buildList(prov),
@@ -126,7 +132,7 @@ class _BondsScreenState extends State<BondsScreen> {
 
   Widget _buildList(BondsProvider prov) {
     if (prov.bonds.isEmpty && prov.loading) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.navy));
+      return const Center(child: CircularProgressIndicator(color: AppColors.navyDeep));
     }
     if (prov.error != null && prov.bonds.isEmpty) {
       return Center(child: Text(prov.error!, style: const TextStyle(color: AppColors.red)));
@@ -134,13 +140,15 @@ class _BondsScreenState extends State<BondsScreen> {
     return RefreshIndicator(
       onRefresh: prov.loadInitial,
       child: ListView.builder(
+        // Added bottom padding so the glass nav bar doesn't block the last item
+        padding: const EdgeInsets.only(bottom: 120),
         physics: const AlwaysScrollableScrollPhysics(),
         itemCount: prov.bonds.length,
         itemBuilder: (context, i) {
           final bond = prov.bonds[i];
           return BondTile(
             bond: bond,
-            sortBy: prov.displayMetric, // Passes the chosen view toggle to the tile
+            sortBy: prov.displayMetric, 
             onTap: () => openBondInApp(bond.isin, webFallback: bond.detailUrl),
             onLongPress: () => _handleLongPress(bond),
           );

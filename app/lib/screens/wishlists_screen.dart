@@ -98,18 +98,29 @@ class _WishlistsScreenState extends State<WishlistsScreen> {
     return Scaffold(
       backgroundColor: AppColors.bg,
       appBar: AppBar(
-        backgroundColor: AppColors.navy,
-        foregroundColor: Colors.white,
-        title: const Text('Wishlists', style: TextStyle(fontWeight: FontWeight.w700)),
+        
+        backgroundColor: Colors.transparent,
+        foregroundColor: AppColors.navyDeep,
+        title: const Text(
+          'Wishlists', 
+          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 24, letterSpacing: -0.5)
+        ),
         elevation: 0,
+        scrolledUnderElevation: 0, 
         actions: [
-          IconButton(icon: const Icon(Icons.add), onPressed: _create),
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: IconButton(
+              icon: const Icon(Icons.add_circle_outline, size: 28), 
+              onPressed: _create
+            ),
+          ),
         ],
       ),
       body: Consumer<WishlistProvider>(
         builder: (context, prov, _) {
           if (prov.loading && prov.wishlists.isEmpty) {
-            return const Center(child: CircularProgressIndicator(color: AppColors.navy));
+            return const Center(child: CircularProgressIndicator(color: AppColors.navyDeep));
           }
 
           if (prov.error != null && prov.wishlists.isEmpty) {
@@ -129,7 +140,7 @@ class _WishlistsScreenState extends State<WishlistsScreen> {
                     const SizedBox(height: 16),
                     FilledButton(
                       onPressed: prov.load,
-                      style: FilledButton.styleFrom(backgroundColor: AppColors.navy),
+                      style: FilledButton.styleFrom(backgroundColor: AppColors.navyDeep),
                       child: const Text('Try Again'),
                     ),
                   ],
@@ -150,7 +161,7 @@ class _WishlistsScreenState extends State<WishlistsScreen> {
                   const SizedBox(height: 12),
                   FilledButton(
                     onPressed: _create,
-                    style: FilledButton.styleFrom(backgroundColor: AppColors.navy),
+                    style: FilledButton.styleFrom(backgroundColor: AppColors.navyDeep),
                     child: const Text('Create wishlist'),
                   ),
                 ],
@@ -161,7 +172,8 @@ class _WishlistsScreenState extends State<WishlistsScreen> {
           return RefreshIndicator(
             onRefresh: prov.load,
             child: ListView.separated(
-              padding: const EdgeInsets.symmetric(vertical: 8),
+              // added bottom padding so the glass nav bar doesnt block the last item
+              padding: const EdgeInsets.only(top: 8, bottom: 120),
               itemCount: list.length,
               separatorBuilder: (_, __) => const Divider(height: 1, color: AppColors.divider),
               itemBuilder: (context, i) {
@@ -172,7 +184,7 @@ class _WishlistsScreenState extends State<WishlistsScreen> {
                     MaterialPageRoute(builder: (_) => WishlistDetailScreen(wishlistId: w.id)),
                   ),
                   leading: const Icon(Icons.folder_outlined, color: AppColors.muted),
-                  title: Text(w.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  title: Text(w.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
                   subtitle: Text('${w.bondCount}/$maxBondsPerWishlist bonds'),
                   trailing: PopupMenuButton<String>(
                     onSelected: (v) {

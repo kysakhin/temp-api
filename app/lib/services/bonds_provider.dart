@@ -10,7 +10,7 @@ class BondsProvider extends ChangeNotifier {
   bool loading = false;
   String? error;
   
-  // Used purely for toggling what is displayed in the UI
+  // Used only for toggling
   String displayMetric = 'bondYield';
 
   Future<void> loadInitial() async {
@@ -18,7 +18,7 @@ class BondsProvider extends ChangeNotifier {
     error = null;
     notifyListeners();
     try {
-      // The API now just fetches the default list (e.g. highest yield)
+      // Defaults to highest yield
       bonds = await api.getBonds(
         sortBy: 'bondYield', 
         sortOrder: 'desc'
@@ -39,7 +39,7 @@ class BondsProvider extends ChangeNotifier {
     }
   }
 
-  // Simply swaps the UI metric without calling the API
+  // Simply swap
   void setDisplayMetric(String metric) {
     if (displayMetric == metric) return;
     displayMetric = metric;

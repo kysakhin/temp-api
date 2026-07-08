@@ -21,7 +21,7 @@ class WishlistProvider extends ChangeNotifier {
 
   List<Wishlist> get sorted {
     final list = [...wishlists];
-    // Now just correctly sorts by created date per the spec
+    // Sort by created at
     list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return list;
   }

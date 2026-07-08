@@ -28,7 +28,7 @@ class ApiService {
     }
   }
 
-  // ── Bonds ──────────────────────────────────────────────────────────────
+  // Bonds 
   
   Future<List<Bond>> getBonds({
     String sortBy = 'bondYield',
@@ -52,7 +52,7 @@ class ApiService {
     _check(r);
   }
 
-  // ── Wishlists ──────────────────────────────────────────────────────────
+  // Wishlists
   
   Future<List<Wishlist>> getWishlists() async {
     final r = await _client.get(_u('/wishlist'));

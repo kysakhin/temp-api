@@ -144,13 +144,13 @@ class BondTile extends StatelessWidget {
     }
   }
 
-  // Safely converts fractional data (e.g. 0.0745) to an exact percentage string (e.g. "7.45")
+  
   String _formatYield(double y) {
     if (y > 0 && y < 1.0) {
       y = y * 100;
     }
     
-    // Convert to a string with high precision to wipe out Dart IEEE floating point errors
+    
     String formatted = y.toStringAsFixed(4);
     
     // Aggressively strip all trailing zeros to reveal the EXACT decimal precision requested

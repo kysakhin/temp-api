@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'services/api_service.dart';
@@ -31,7 +32,8 @@ class BondScannerApp extends StatelessWidget {
             seedColor: AppColors.navy,
             primary: AppColors.navy,
           ),
-          fontFamily: 'Roboto',
+          // Changed font to Inter across the entire app
+          fontFamily: 'Inter', 
         ),
         home: const RootTabs(),
       ),
@@ -52,14 +54,76 @@ class _RootTabsState extends State<RootTabs> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // extendBody allows the list content to render underneath the floating glass bar
+      extendBody: true,
       body: IndexedStack(index: _index, children: _screens),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.list_alt), label: 'Bonds'),
-          NavigationDestination(icon: Icon(Icons.bookmark), label: 'Wishlists'),
-        ],
+      
+      // Navigation Bar
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.only(left: 24, right: 24, bottom: 16),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(28),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+              child: Container(
+                height: 72,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.65),
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.8),
+                    width: 1.2,
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _navItem(Icons.list_alt, 'Bonds', 0),
+                    _navItem(Icons.bookmark_outline, 'Wishlists', 1),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _navItem(IconData icon, String label, int index) {
+    final isSelected = _index == index;
+    final color = isSelected ? AppColors.navyDeep : AppColors.muted;
+    
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => setState(() => _index = index),
+      child: SizedBox(
+        width: 90,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOut,
+              transform: Matrix4.translationValues(0, isSelected ? -2 : 0, 0),
+              child: Icon(
+                icon, 
+                color: color, 
+                size: isSelected ? 28 : 26
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
