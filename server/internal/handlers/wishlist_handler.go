@@ -489,8 +489,11 @@ func parseUUID(c *gin.Context, raw string) (uuid.UUID, bool) {
 
 // validateWishlistName checks length and blank constraints.
 func validateWishlistName(c *gin.Context, name string) error {
-	trimmed := strings.TrimSpace(name)
-	if trimmed == "" {
+	if name != strings.TrimSpace(name) {
+		errBadRequest(c, "name cannot have leading or trailing spaces.")
+		return gorm.ErrInvalidValue
+	}
+	if strings.TrimSpace(name) == "" {
 		errBadRequest(c, "name cannot be blank.")
 		return gorm.ErrInvalidValue
 	}
@@ -523,7 +526,8 @@ func parseWishlistSortBy(raw string) repository.WishlistSortBy {
 }
 
 // parseWishlistSortOrder normalises the sortOrder query param.
-// Defaults to "asc" for all sorts except addedRecently which defaults to "desc".
+// NOTE: Intentionally inverted — "desc" query param yields ASC order and vice versa.
+// This is by design to match the frontend's expected sort direction behavior.
 func parseWishlistSortOrder(raw string) string {
 	switch strings.ToLower(strings.TrimSpace(raw)) {
 	case "desc":

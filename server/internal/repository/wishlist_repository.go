@@ -92,10 +92,10 @@ func (r *wishlistRepository) CountWishlists() (int64, error) {
 	return count, nil
 }
 
-// WishlistExistsByName checks if a wishlist with the exact name already exists, optionally excluding a specific ID.
+// WishlistExistsByName checks if a wishlist with the same name already exists (case-insensitive), optionally excluding a specific ID.
 func (r *wishlistRepository) WishlistExistsByName(name string, excludeID uuid.UUID) (bool, error) {
 	var count int64
-	q := r.db.Model(&models.Wishlist{}).Where("name = ?", name)
+	q := r.db.Model(&models.Wishlist{}).Where("name ILIKE ?", name)
 	if excludeID != uuid.Nil {
 		q = q.Where("id != ?", excludeID)
 	}
