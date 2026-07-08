@@ -65,7 +65,11 @@ class _BondsScreenState extends State<BondsScreen> {
                 );
               }
             } catch (e) {
-              _showError(e.toString());
+              String errorMsg = e.toString();
+              if (errorMsg.contains('409')) {
+                errorMsg = 'Bond is already in this wishlist.';
+              }
+              _showError(errorMsg);
             }
           },
         );
@@ -123,7 +127,11 @@ class _BondsScreenState extends State<BondsScreen> {
             );
           }
         } catch (e) {
-          _showError(e.toString());
+          String errorMsg = e.toString();
+          if (errorMsg.contains('409')) {
+            errorMsg = 'One or more bonds are already in this wishlist.';
+          }
+          _showError(errorMsg);
         }
       },
     );
