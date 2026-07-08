@@ -65,7 +65,7 @@ func (h *WishlistHandler) GetWishlists(c *gin.Context) {
 // ─── GET /api/v1/wishlist/:wishlistId ────────────────────────────────────────
 
 // GetWishlist returns a single wishlist with all its bonds.
-// Query param: sortBy — manual (default) | addedRecently | color | yield | minInvestment | tenure
+// Query param: sortBy — manual (default) | addedRecently | color | yield | minInvestment | tenure | rating
 func (h *WishlistHandler) GetWishlist(c *gin.Context) {
 	id, ok := parseUUID(c, c.Param("wishlistId"))
 	if !ok {
@@ -132,6 +132,19 @@ func (h *WishlistHandler) CreateWishlist(c *gin.Context) {
 		return
 	}
 
+	exists, err := h.wishlistRepo.WishlistExistsByName(req.Name, uuid.Nil)
+	if err != nil {
+		errInternal(c)
+		return
+	}
+	if exists {
+		c.JSON(http.StatusConflict, apiError{
+			Code:    "WISHLIST_ALREADY_EXISTS",
+			Message: "A wishlist with this name already exists.",
+		})
+		return
+	}
+
 	count, err := h.wishlistRepo.CountWishlists()
 	if err != nil {
 		errInternal(c)
@@ -176,6 +189,19 @@ func (h *WishlistHandler) UpdateWishlist(c *gin.Context) {
 	}
 
 	if err := validateWishlistName(c, req.Name); err != nil {
+		return
+	}
+
+	exists, err := h.wishlistRepo.WishlistExistsByName(req.Name, id)
+	if err != nil {
+		errInternal(c)
+		return
+	}
+	if exists {
+		c.JSON(http.StatusConflict, apiError{
+			Code:    "WISHLIST_ALREADY_EXISTS",
+			Message: "A wishlist with this name already exists.",
+		})
 		return
 	}
 
@@ -487,6 +513,8 @@ func parseWishlistSortBy(raw string) repository.WishlistSortBy {
 		return repository.WishlistSortMinInvestment
 	case "tenure":
 		return repository.WishlistSortTenure
+	case "rating":
+		return repository.WishlistSortRating
 	default: // "manual" or anything else
 		return repository.WishlistSortManual
 	}

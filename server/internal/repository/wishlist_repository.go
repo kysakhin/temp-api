@@ -33,6 +33,7 @@ const (
 	WishlistSortYield         WishlistSortBy = "yield"         // pinned DESC, bond_yield DESC NULLS LAST, position ASC
 	WishlistSortMinInvestment WishlistSortBy = "minInvestment" // pinned DESC, min_investment ASC NULLS LAST, position ASC
 	WishlistSortTenure        WishlistSortBy = "tenure"        // pinned DESC, tenure ASC, position ASC
+	WishlistSortRating        WishlistSortBy = "rating"        // pinned DESC, custom rating ASC, position ASC
 )
 
 // WishlistRepository defines the data-access contract for wishlists.
@@ -40,6 +41,7 @@ type WishlistRepository interface {
 	ListWishlists() ([]models.Wishlist, error)
 	GetWishlistByID(id uuid.UUID) (*models.Wishlist, error)
 	CountWishlists() (int64, error)
+	WishlistExistsByName(name string, excludeID uuid.UUID) (bool, error)
 	CreateWishlist(name string) (*models.Wishlist, error)
 	UpdateWishlistName(id uuid.UUID, name string) (*models.Wishlist, error)
 	DeleteWishlist(id uuid.UUID) error
@@ -88,6 +90,17 @@ func (r *wishlistRepository) CountWishlists() (int64, error) {
 		return 0, fmt.Errorf("counting wishlists: %w", err)
 	}
 	return count, nil
+}
+
+// WishlistExistsByName checks if a wishlist with the exact name already exists, optionally excluding a specific ID.
+func (r *wishlistRepository) WishlistExistsByName(name string, excludeID uuid.UUID) (bool, error) {
+	var count int64
+	q := r.db.Model(&models.Wishlist{}).Where("name = ?", name)
+	if excludeID != uuid.Nil {
+		q = q.Where("id != ?", excludeID)
+	}
+	err := q.Count(&count).Error
+	return count > 0, err
 }
 
 // CreateWishlist inserts a new wishlist and returns the created record.
@@ -150,10 +163,12 @@ func (r *wishlistRepository) GetWishlistWithBonds(id uuid.UUID, sortBy WishlistS
 		secondaryOrder = "wb.color ASC NULLS LAST, wb.position ASC"
 	case WishlistSortYield:
 		secondaryOrder = "b.bond_yield DESC NULLS LAST, wb.position ASC"
-	case WishlistSortMinInvestment:
+	case "minInvestment":
 		secondaryOrder = "b.min_investment ASC NULLS LAST, wb.position ASC"
 	case WishlistSortTenure:
 		secondaryOrder = "b.tenure ASC, wb.position ASC"
+	case WishlistSortRating:
+		secondaryOrder = "array_position(ARRAY['AAA', 'AA+', 'AA', 'AA-', 'A+', 'A', 'A-', 'BBB+', 'BBB', 'BBB-', 'BB+', 'BB', 'BB-', 'B+', 'B', 'B-', 'CCC+', 'CCC', 'CCC-', 'CC', 'C', 'D']::varchar[], REPLACE(b.rating, '−', '-')) ASC NULLS LAST, wb.position ASC"
 	default: // WishlistSortManual
 		secondaryOrder = "wb.position ASC"
 	}
